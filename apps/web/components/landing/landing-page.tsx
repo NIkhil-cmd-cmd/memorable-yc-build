@@ -22,7 +22,7 @@ const STEP_CARDS = [
   {
     id: 'signal',
     title: 'SIGNAL',
-    desc: 'K-means bucket lookup + L1/L2/L3 recall.',
+    desc: 'KNN/K-means bucket lookup + L1/L2/L3 recall.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <path
@@ -240,7 +240,7 @@ function FlowchartScenes({ active }: { active: string }) {
               className={`arch-box ${signalFocus}`}
             />
             <text x="453" y="130" className="arch-copy">
-              K-Means Bucket Router
+              KNN / K-Means Router
             </text>
 
             <rect
@@ -682,6 +682,26 @@ export function LandingPage() {
               </p>
 
               <FlowchartScenes active={activeStep} />
+              <div className="integration-grid" style={{ marginTop: 16 }}>
+                <article className="integration-card">
+                  <p className="integration-name">3-Layer Memory (Moss)</p>
+                  <p className="integration-copy">
+                    L1 Episodic traces → L2 Semantic patterns → L3 Workflow playbooks.
+                  </p>
+                </article>
+                <article className="integration-card">
+                  <p className="integration-name">KNN / K-Means Retrieval</p>
+                  <p className="integration-copy">
+                    Embed task → nearest bucket/centroid → fetch similar workflows.
+                  </p>
+                </article>
+                <article className="integration-card">
+                  <p className="integration-name">Shared GNN Ranking</p>
+                  <p className="integration-copy">
+                    Concat [graph features | bucket embedding] → rank tool/path transitions.
+                  </p>
+                </article>
+              </div>
               <div className="integration-grid">
                 <article className="integration-card">
                   <p className="integration-name">LiveKit</p>
