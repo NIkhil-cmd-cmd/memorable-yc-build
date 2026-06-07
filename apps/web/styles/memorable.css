@@ -1379,6 +1379,12 @@
   color: #234a86;
 }
 
+.mem-pill.active.positive {
+  border-color: rgba(42, 190, 124, 0.62);
+  background: rgba(42, 190, 124, 0.16);
+  color: #166f45;
+}
+
 .mem-log-list {
   margin-top: 10px;
   max-height: 240px;
@@ -1415,6 +1421,20 @@
   margin: 0;
   color: var(--mem-muted);
   font-size: 0.9rem;
+}
+
+.mem-verdict-line {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.mem-verdict-line.is-win {
+  color: #17784a;
+}
+
+.mem-verdict-line.is-mixed {
+  color: #8f3b2f;
 }
 
 .mem-diff-grid {
@@ -1598,6 +1618,16 @@
 
 .mem-graph-node.memory.is-win {
   fill: rgba(23, 120, 74, 0.2);
+}
+
+.mem-graph-node-live {
+  fill: rgba(23, 120, 74, 0.95);
+}
+
+.mem-graph-travel-dot {
+  fill: rgba(23, 120, 74, 0.92);
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1;
 }
 
 .mem-graph-label {

@@ -217,6 +217,15 @@ function WorkflowGraph({
         </p>
       </div>
       <svg viewBox="0 0 900 300" className="mem-graph-svg" aria-hidden>
+        <defs>
+          <path
+            id="mem-live-path"
+            d={`M ${memoryNodes[0]?.x ?? 74} ${memoryNodes[0]?.y ?? 222} ${memoryNodes
+              .slice(1)
+              .map((n) => `L ${n.x} ${n.y}`)
+              .join(' ')}`}
+          />
+        </defs>
         <text x="20" y="46" className="mem-graph-row-label cold">
           cold
         </text>
@@ -271,11 +280,34 @@ function WorkflowGraph({
               rx="7"
               className={`mem-graph-node memory ${divergenceIndex !== null && i >= divergenceIndex ? 'is-win' : ''}`}
             />
+            <circle className="mem-graph-node-live" cx={node.x} cy={node.y} r="4.5">
+              <animate
+                attributeName="r"
+                values="3.8;5.8;3.8"
+                dur="1.5s"
+                begin={`${i * 0.15}s`}
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.45;1;0.45"
+                dur="1.5s"
+                begin={`${i * 0.15}s`}
+                repeatCount="indefinite"
+              />
+            </circle>
             <text x={node.x} y={node.y + 4} textAnchor="middle" className="mem-graph-label">
               {humanizeToolName(node.label).slice(0, 14)}
             </text>
           </g>
         ))}
+        {memoryNodes.length > 1 && (
+          <circle r="6" className="mem-graph-travel-dot">
+            <animateMotion dur="2.4s" repeatCount="indefinite">
+              <mpath href="#mem-live-path" />
+            </animateMotion>
+          </circle>
+        )}
       </svg>
     </section>
   );
@@ -289,6 +321,7 @@ function SessionPanel({
   session,
   enabled,
   replayOnly,
+  coldCompleteForGate,
   currentTool,
   onFinish,
 }: {
@@ -299,6 +332,7 @@ function SessionPanel({
   session: BenchmarkRun['cold'] | BenchmarkRun['memory'];
   enabled: boolean;
   replayOnly?: boolean;
+  coldCompleteForGate?: boolean;
   currentTool?: string | null;
   onFinish: () => void;
 }) {
@@ -332,7 +366,8 @@ function SessionPanel({
     mode === 'cold'
       ? 'No shared memory. Baseline behavior.'
       : 'Shared memory + workflow replay active.';
-  const memoryLocked = mode === 'full' && !!runId && !enabled && !replayOnly;
+  const memoryLocked =
+    mode === 'full' && !!runId && (!enabled || (replayOnly && !coldCompleteForGate));
 
   return (
     <AgentSessionProvider session={sessionHook} key={`${mode}-${runId ?? 'none'}`}>
@@ -653,7 +688,20 @@ export function DemoLayout() {
   const timeDropPct = pctDrop(coldDuration, memDuration);
   const toolDropPct = pctDrop(coldToolCalls, memToolCalls);
   const coldComplete = displayedRun?.cold?.status === 'complete';
-  const memoryRunning = phase === 'memory' || phase === 'done';
+  const visualPhase = isBackupReplay
+    ? displayedRun?.memory?.status === 'complete'
+      ? ('done' as const)
+      : displayedRun?.cold?.status === 'complete'
+        ? ('memory' as const)
+        : ('cold' as const)
+    : phase;
+  const memoryRunning = visualPhase === 'memory' || visualPhase === 'done';
+  const memoryWin =
+    coldComplete &&
+    displayedRun?.memory?.status === 'complete' &&
+    memTokens < coldTokens &&
+    memCost < coldCost &&
+    memDuration < coldDuration;
   const replayProgress =
     isBackupReplay && timelineEvents.length > 0
       ? Math.min(100, Math.round((replayIndex / timelineEvents.length) * 100))
@@ -690,7 +738,9 @@ export function DemoLayout() {
           <div className="mem-phase-track" aria-label="Run phases">
             <div
               className={`mem-phase-step ${
-                phase === 'cold' || phase === 'memory' || phase === 'done' ? 'is-done' : ''
+                visualPhase === 'cold' || visualPhase === 'memory' || visualPhase === 'done'
+                  ? 'is-done'
+                  : ''
               }`}
             >
               <span>1</span>
@@ -720,7 +770,7 @@ export function DemoLayout() {
               ← Landing
             </Link>
             <span className="mem-badge">run: {runId ?? 'none'}</span>
-            <span className="mem-badge">phase: {phase}</span>
+            <span className="mem-badge">phase: {visualPhase}</span>
             {isBackupReplay && <span className="mem-badge">replay: {replayProgress}%</span>}
           </div>
 
@@ -790,7 +840,7 @@ export function DemoLayout() {
             scenario={scenario}
             modelRoute={modelRoute}
             session={displayedRun?.cold}
-            enabled={!isBackupReplay && phase === 'cold'}
+            enabled={!isBackupReplay && visualPhase === 'cold'}
             replayOnly={isBackupReplay}
             currentTool={typeof coldCurrentTool === 'string' ? coldCurrentTool : null}
             onFinish={() => setPhase('memory')}
@@ -803,10 +853,11 @@ export function DemoLayout() {
             session={displayedRun?.memory}
             enabled={
               !isBackupReplay &&
-              (phase === 'memory' || phase === 'done') &&
+              (visualPhase === 'memory' || visualPhase === 'done') &&
               displayedRun?.cold?.status === 'complete'
             }
             replayOnly={isBackupReplay}
+            coldCompleteForGate={displayedRun?.cold?.status === 'complete'}
             currentTool={typeof memoryCurrentTool === 'string' ? memoryCurrentTool : null}
             onFinish={() => setPhase('done')}
           />
@@ -815,6 +866,13 @@ export function DemoLayout() {
         <section className="mem-panel mem-diff">
           <div className="mem-diff-head">
             <p className="mem-section-label">WHY MEMORABLE IS BETTER</p>
+            {coldComplete && displayedRun?.memory?.status === 'complete' && (
+              <p className={`mem-verdict-line ${memoryWin ? 'is-win' : 'is-mixed'}`}>
+                {memoryWin
+                  ? 'MEMORY WIN: lower tokens, lower cost, faster completion.'
+                  : 'Mixed result: memory did not beat cold on all primary metrics.'}
+              </p>
+            )}
             <p className="mem-diff-summary">
               {displayedRun?.cold?.status === 'complete' &&
               displayedRun?.memory?.status === 'complete'
@@ -833,11 +891,11 @@ export function DemoLayout() {
               </p>
             )}
             <div className="mem-diff-pills">
-              <span className="mem-pill active">-{Math.max(0, tokenDelta)} tokens</span>
-              <span className="mem-pill active">
+              <span className="mem-pill active positive">-{Math.max(0, tokenDelta)} tokens</span>
+              <span className="mem-pill active positive">
                 -{Math.max(0, coldSteps.length - memorySteps.length)} steps
               </span>
-              <span className="mem-pill active">
+              <span className="mem-pill active positive">
                 -
                 {fmtMs(
                   Math.max(

@@ -225,8 +225,7 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
 
   const steps = BACKUP_SCENARIOS[scenario_id];
 
-  const mkSession = (mode: BenchmarkMode, tools: string[]): SessionTrace => {
-    const startedAtMs = Date.now() + (mode === 'cold' ? 0 : 800);
+  const mkSession = (mode: BenchmarkMode, tools: string[], startedAtMs: number): SessionTrace => {
     const started = new Date(startedAtMs).toISOString();
     const stepMs = mode === 'cold' ? 880 : 360;
     const doneAtMs = startedAtMs + tools.length * stepMs + (mode === 'cold' ? 3200 : 1200);
@@ -325,8 +324,10 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
     };
   };
 
-  run.cold = mkSession('cold', steps.cold);
-  run.memory = mkSession('full', steps.memory);
+  const coldStartMs = Date.now();
+  run.cold = mkSession('cold', steps.cold, coldStartMs);
+  const coldEndMs = run.cold.ended_at ? new Date(run.cold.ended_at).getTime() : coldStartMs + 1000;
+  run.memory = mkSession('full', steps.memory, coldEndMs + 1400);
   run.status = 'complete';
   setRun(run);
   return run;
