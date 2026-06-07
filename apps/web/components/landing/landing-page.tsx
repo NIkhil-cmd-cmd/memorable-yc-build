@@ -733,28 +733,6 @@ export function LandingPage() {
                   </p>
                 </article>
               </div>
-              <div className="integration-grid" style={{ marginTop: 16 }}>
-                <article className="integration-card">
-                  <p className="integration-name">Sponsor Stack</p>
-                  <div className="sponsor-logo-row">
-                    <img src="/lk-wordmark.svg" alt="LiveKit logo" className="sponsor-logo" />
-                    <img src="/sponsors/moss-logo.svg" alt="Moss logo" className="sponsor-logo" />
-                    <img
-                      src="/sponsors/truefoundry-logo.svg"
-                      alt="TrueFoundry logo"
-                      className="sponsor-logo"
-                    />
-                    <img
-                      src="/sponsors/minimax-logo.svg"
-                      alt="MiniMax logo"
-                      className="sponsor-logo"
-                    />
-                  </div>
-                  <p className="integration-copy" style={{ marginTop: 8 }}>
-                    LiveKit voice + Moss retrieval/embeddings + TrueFoundry routing + MiniMax model.
-                  </p>
-                </article>
-              </div>
             </div>
           </section>
 
