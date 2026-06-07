@@ -1,6 +1,6 @@
 """Natural-language briefings for the voice agent (never shown to the customer)."""
 
-from memorable.memory.tools import DEMO_ZIP
+from memorable.memory.tools import DEMO_ROUTE
 
 LAYER_HINTS = {
     "workflow": "From past calls on similar issues",
@@ -25,7 +25,7 @@ def format_agent_briefing(result: dict, mode: str) -> str | None:
             )
             parts.append(f"Docs: {result['context'][:280]}")
         parts.append(
-            "Without run history you will run a speed test, then try a full router reset if drops continue."
+            "Without run history, confirm intent, search baseline fares, and continue step-by-step."
         )
         return "\n".join(parts) if parts else None
 
@@ -43,7 +43,7 @@ def format_agent_briefing(result: dict, mode: str) -> str | None:
         parts.append(f"Memory recommends: {next_action}.")
 
     parts.append(
-        f"Account zip {DEMO_ZIP} is on file — use it for outage checks. "
+        f"Primary customer route {DEMO_ROUTE} is on file. "
         "Relay each backend result below in order; do not skip steps."
     )
     return "\n".join(parts) if parts else None
@@ -52,17 +52,18 @@ def format_agent_briefing(result: dict, mode: str) -> str | None:
 def systems_note_for_tool(tool: str, raw_result: str) -> str:
     """Facts the agent can paraphrase — not spoken verbatim."""
     notes = {
-        "check_outage_map": (
-            f"Outage map for zip {DEMO_ZIP}: no active outages in the customer's area."
+        "check_waiver_status": "Ops waiver is active for this disruption window, penalties can be bypassed.",
+        "search_partner_flights": "Partner inventory found an earlier seat that satisfies same-day constraints.",
+        "apply_same_day_policy": "Same-day rebooking policy applied with no change fee.",
+        "auto_rebook_and_issue_voucher": (
+            "Customer rebooked and disruption voucher issued in one flow."
         ),
-        "check_line_signal": "Line diagnostics: signal weak at −18 dBm — likely cause of drops.",
-        "reboot_modem": "Modem reboot sent — connection should stabilize in a few minutes.",
-        "factory_reset_router": "Factory reset failed — router did not come back online.",
-        "run_speed_test": "Speed test: 45 Mbps down / 12 Mbps up — looks fine on paper.",
-        "pull_account_billing": "Billing review: duplicate prorated fee identified on the latest invoice.",
-        "apply_bill_credit": "Billing correction applied with a one-time $25 credit.",
-        "escalate_tier2": "Tier-2 escalation placed; issue remains unresolved on this call.",
-        "reset_apn_settings": "APN reset completed; mobile registration recovered.",
+        "search_basic_fares": "Only baseline fares returned, no policy-aware routing yet.",
+        "choose_late_connection": "Selected a late connection with high miss-risk and poor arrival time.",
+        "retry_booking_failed_fare_class": (
+            "Booking retry failed because fare class is restricted under current disruption rules."
+        ),
+        "escalate_manual_ticketing": "Manual queue escalation created; issue remains unresolved on this call.",
     }
     return notes.get(tool, raw_result)
 

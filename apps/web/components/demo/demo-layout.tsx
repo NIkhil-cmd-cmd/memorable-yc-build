@@ -30,48 +30,31 @@ const SCENARIOS: Record<
   BenchmarkScenario,
   { label: string; prompt: string; coldPrompt: string; memoryPrompt: string }
 > = {
-  internet_dropout: {
+  flight_rebooking: {
     label: 'Flight Rebooking During Delay',
     prompt: 'My flight got canceled, I need to get to SF tonight.',
     coldPrompt: 'My flight got canceled, I need to get to SF tonight.',
     memoryPrompt:
-      'My flight was canceled and I still need to get to SF tonight. Rebook me on the fastest valid route.',
-  },
-  billing_dispute: {
-    label: 'Billing Dispute (alt)',
-    prompt: 'I was overcharged this month and need this fixed today.',
-    coldPrompt: 'I was overcharged this month and need this fixed today.',
-    memoryPrompt: 'I got double billed this month, resolve and apply any valid credit now.',
-  },
-  phone_service_issue: {
-    label: 'Phone Service Issue (alt)',
-    prompt: 'My phone shows bars but calls keep failing.',
-    coldPrompt: 'My phone shows bars but calls keep failing.',
-    memoryPrompt: 'I have signal but outbound calls fail, troubleshoot and restore calling fast.',
+      'My flight was canceled and I still need to reach San Francisco tonight. Rebook me on the fastest valid route.',
   },
 };
 
 const MEMORY_TOOL_ALLOWLIST: Record<BenchmarkScenario, string[]> = {
-  internet_dropout: [
+  flight_rebooking: [
     'check_waiver_status',
     'search_partner_flights',
-    'search_partner_flights_retry',
     'apply_same_day_policy',
     'auto_rebook_and_issue_voucher',
   ],
-  billing_dispute: ['pull_account_billing', 'detect_duplicate_charge', 'apply_bill_credit'],
-  phone_service_issue: ['check_outage_map', 'reset_apn_settings', 'reboot_modem'],
 };
 
 const MOSS_REFERENCE_LABELS: Record<BenchmarkScenario, string[]> = {
-  internet_dropout: [
-    'waiver_policy',
-    'partner_flight_matrix',
-    'fare_rules_dead_end_list',
-    'same_day_rebook_playbook',
+  flight_rebooking: [
+    'airline_irrops_waiver_policy',
+    'partner_inventory_matrix',
+    'restricted_fare_dead_end_patterns',
+    'same_day_rebooking_playbook',
   ],
-  billing_dispute: ['billing_adjustment_policy', 'duplicate_charge_runbook'],
-  phone_service_issue: ['network_outage_knowledge', 'apn_recovery_playbook'],
 };
 
 type IntegrationStatus = {
@@ -202,13 +185,8 @@ function firstDivergence(coldSteps: string[], memorySteps: string[]) {
 
 const DEAD_END_TOOLS = new Set([
   'retry_booking_failed_fare_class',
-  'price_recheck_restricted_fare',
   'choose_late_connection',
   'escalate_manual_ticketing',
-  'factory_reset_router',
-  'escalate_network_ops',
-  'escalate_tier2',
-  'search_partner_flights_retry',
 ]);
 
 function hasDeadEnd(steps: string[]) {
@@ -798,10 +776,10 @@ function SessionPanel({
 }
 
 export function DemoLayout() {
-  const [scenario, setScenario] = useState<BenchmarkScenario>('internet_dropout');
+  const [scenario, setScenario] = useState<BenchmarkScenario>('flight_rebooking');
   const [phase, setPhase] = useState<'idle' | 'cold' | 'memory' | 'done'>('idle');
   const [runId, setRunId] = useState<string | null>(null);
-  const [modelRoute, setModelRoute] = useState('truefoundry-openai');
+  const [modelRoute, setModelRoute] = useState('truefoundry-minimax');
   const [activeRun, setActiveRun] = useState<BenchmarkRun | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [replayIndex, setReplayIndex] = useState(0);
@@ -1097,17 +1075,17 @@ export function DemoLayout() {
               onChange={(e) => setModelRoute(e.target.value)}
             >
               <option
-                value="truefoundry-openai"
-                disabled={!integrationStatus?.integrations.truefoundry.configured}
-              >
-                TrueFoundry → OpenAI
-                {!integrationStatus?.integrations.truefoundry.configured ? ' (configure env)' : ''}
-              </option>
-              <option
                 value="truefoundry-minimax"
                 disabled={!integrationStatus?.integrations.truefoundry.configured}
               >
                 TrueFoundry → MiniMax
+                {!integrationStatus?.integrations.truefoundry.configured ? ' (configure env)' : ''}
+              </option>
+              <option
+                value="truefoundry-openai"
+                disabled={!integrationStatus?.integrations.truefoundry.configured}
+              >
+                TrueFoundry → OpenAI
                 {!integrationStatus?.integrations.truefoundry.configured ? ' (configure env)' : ''}
               </option>
               <option value="direct-openai">Direct OpenAI</option>

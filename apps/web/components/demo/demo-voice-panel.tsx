@@ -71,8 +71,8 @@ function VoiceSession({ mode, label, accent, active, onComplete }: Omit<Props, '
       tools.length
         ? tools
         : mode === 'cold'
-          ? ['factory_reset_router']
-          : ['check_outage_map', 'reboot_modem']
+          ? ['search_basic_fares', 'retry_booking_failed_fare_class']
+          : ['check_waiver_status', 'search_partner_flights', 'auto_rebook_and_issue_voucher']
     );
   }, [session, tools, onComplete, mode]);
 

@@ -41,7 +41,8 @@ export const WelcomeView = ({
       </p>
 
       <p className="mt-2 max-w-xs text-xs text-[#64748b]">
-        Say &ldquo;My internet keeps dropping&rdquo; and compare what the agent does.
+        Say &ldquo;My flight got canceled and I need to get to SF tonight&rdquo; and compare what
+        the agent does.
       </p>
 
       <Button

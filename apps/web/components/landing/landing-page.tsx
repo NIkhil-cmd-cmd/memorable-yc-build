@@ -423,8 +423,8 @@ export function LandingPage() {
       '>>> from memorable import Memorable',
       '>>> memory = Memorable.from_env()',
       '>>> await memory.ensure_loaded()',
-      '>>> await memory.query("billing dispute", mode="full")',
-      "{'primary_layer': 'workflow', 'next_action': 'pull_account_billing'}",
+      '>>> await memory.query("flight rebooking after cancellation", mode="full")',
+      "{'primary_layer': 'workflow', 'next_action': 'check_waiver_status'}",
     ];
 
     let started = false;
@@ -703,11 +703,35 @@ export function LandingPage() {
                 </article>
                 <article className="integration-card">
                   <p className="integration-name">TrueFoundry</p>
-                  <p className="integration-copy">Model routing gateway (OpenAI/MiniMax/direct).</p>
+                  <p className="integration-copy">
+                    Model routing gateway (MiniMax via TrueFoundry + direct fallback).
+                  </p>
                   <p className="integration-state">
                     {integrationStatus?.integrations.truefoundry.configured
                       ? 'configured'
                       : 'optional, not configured'}
+                  </p>
+                </article>
+              </div>
+              <div className="integration-grid" style={{ marginTop: 16 }}>
+                <article className="integration-card">
+                  <p className="integration-name">Sponsor Stack</p>
+                  <div className="sponsor-logo-row">
+                    <img src="/lk-wordmark.svg" alt="LiveKit logo" className="sponsor-logo" />
+                    <img src="/sponsors/moss-logo.svg" alt="Moss logo" className="sponsor-logo" />
+                    <img
+                      src="/sponsors/truefoundry-logo.svg"
+                      alt="TrueFoundry logo"
+                      className="sponsor-logo"
+                    />
+                    <img
+                      src="/sponsors/minimax-logo.svg"
+                      alt="MiniMax logo"
+                      className="sponsor-logo"
+                    />
+                  </div>
+                  <p className="integration-copy" style={{ marginTop: 8 }}>
+                    LiveKit voice + Moss retrieval/embeddings + TrueFoundry routing + MiniMax model.
                   </p>
                 </article>
               </div>
@@ -725,7 +749,8 @@ export function LandingPage() {
                 <span className="solution-emphasis ink-trigger ink-circle">any</span> stack.
               </h2>
               <p style={{ marginTop: 12, color: 'var(--mem-muted)', fontSize: '0.9rem' }}>
-                → init db, system gets exponentially better over time.
+                → initialize traces, train workflow memory, replay better tool paths on the next
+                call.
               </p>
 
               <div className="pipeline-row">
@@ -755,7 +780,7 @@ export function LandingPage() {
                   {`from memorable import Memorable
 memory = Memorable.from_env()
 await memory.init_all()
-result = await memory.query("billing dispute", mode="full")`}
+result = await memory.query("flight rebooking after cancellation", mode="full")`}
                 </pre>
               </div>
             </div>
@@ -771,9 +796,10 @@ result = await memory.query("billing dispute", mode="full")`}
                     Ship <i style={{ fontStyle: 'italic' }}>intelligent</i> agents.
                   </h2>
                   <ul className="dev-list">
+                    <li>3 commands: pnpm setup, pnpm memorable:init, pnpm dev:all</li>
                     <li>REST APIs for benchmark runs, memory graph, and status</li>
                     <li>Python SDK in packages/memorable</li>
-                    <li>LiveKit worker hook for cold/full memory mode</li>
+                    <li>Five-line LiveKit worker hook for cold/full memory mode</li>
                     <li>SSE event stream + exportable JSON trace logs</li>
                   </ul>
                 </div>

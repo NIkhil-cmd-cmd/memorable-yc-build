@@ -1,32 +1,43 @@
 """Playbook resolution by scenario — cold vs memory diverge visibly."""
 
-INTERNET_KEYWORDS = ("internet", "drop", "disconnect", "wifi", "outage", "slow", "connection")
+FLIGHT_KEYWORDS = (
+    "flight",
+    "rebook",
+    "cancel",
+    "delayed",
+    "delay",
+    "itinerary",
+    "airline",
+    "voucher",
+)
 
 PLAYBOOKS = {
-    "internet_dropout": {
-        "full": ["check_outage_map", "check_line_signal", "reboot_modem"],
-        "cold": ["run_speed_test", "factory_reset_router"],
-    },
-    "billing_dispute": {
-        "full": ["pull_account_billing", "apply_bill_credit"],
-        "cold": ["escalate_tier2"],
-    },
-    "phone_service_issue": {
-        "full": ["reset_apn_settings", "reboot_modem"],
-        "cold": ["factory_reset_router"],
-    },
+    "flight_rebooking": {
+        "full": [
+            "check_waiver_status",
+            "search_partner_flights",
+            "apply_same_day_policy",
+            "auto_rebook_and_issue_voucher",
+        ],
+        "cold": [
+            "search_basic_fares",
+            "choose_late_connection",
+            "retry_booking_failed_fare_class",
+            "escalate_manual_ticketing",
+        ],
+    }
 }
 
-DEMO_ZIP = "95014"
+DEMO_ROUTE = "SJC -> SFO"
 
 
-def is_internet_issue(text: str) -> bool:
+def is_flight_request(text: str) -> bool:
     t = text.lower()
-    return any(k in t for k in INTERNET_KEYWORDS)
+    return any(k in t for k in FLIGHT_KEYWORDS)
 
 
 def playbook_for_mode(mode: str, scenario_id: str) -> list[str]:
-    scenario = PLAYBOOKS.get(scenario_id, PLAYBOOKS["internet_dropout"])
+    scenario = PLAYBOOKS.get(scenario_id, PLAYBOOKS["flight_rebooking"])
     return scenario["full" if mode == "full" else "cold"]
 
 

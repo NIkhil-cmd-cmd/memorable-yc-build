@@ -681,6 +681,22 @@
   line-height: 1.5;
 }
 
+.sponsor-logo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.sponsor-logo {
+  height: 32px;
+  width: auto;
+  border: 1px solid var(--mem-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 4px 8px;
+}
+
 .flowchart-panel {
   margin-top: 16px;
   border: 1px dashed var(--mem-border-strong);

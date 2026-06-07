@@ -112,81 +112,36 @@ def get_recent_traces(limit: int = 20) -> list[dict]:
 
 
 def seed_demo_traces() -> None:
-    """Seed traces with strong internet_dropout contrast for demo."""
-    success_path = ["check_outage_map", "check_line_signal", "reboot_modem"]
-    fail_path = ["check_outage_map", "factory_reset_router"]
+    """Seed traces with strong flight_rebooking contrast for demo."""
+    success_path = [
+        "check_waiver_status",
+        "search_partner_flights",
+        "apply_same_day_policy",
+        "auto_rebook_and_issue_voucher",
+    ]
+    fail_path = [
+        "search_basic_fares",
+        "choose_late_connection",
+        "retry_booking_failed_fare_class",
+        "escalate_manual_ticketing",
+    ]
 
     demo: list[tuple] = []
     for i in range(1, 9):
         demo.append(
-            (f"seed-id-{i}", "internet_dropout", success_path, "success", None, 45 + i)
+            (f"seed-fr-success-{i}", "flight_rebooking", success_path, "success", None, 70 + i)
         )
     for i in range(1, 6):
         demo.append(
             (
-                f"seed-fail-{i}",
-                "internet_dropout",
+                f"seed-fr-fail-{i}",
+                "flight_rebooking",
                 fail_path,
                 "failure",
-                "factory_reset_router",
-                15 + i,
+                "retry_booking_failed_fare_class",
+                55 + i,
             )
         )
-
-    demo.extend(
-        [
-            (
-                "seed-bd-1",
-                "billing_dispute",
-                ["pull_account_billing", "apply_bill_credit"],
-                "success",
-                None,
-                35,
-            ),
-            (
-                "seed-bd-2",
-                "billing_dispute",
-                ["pull_account_billing", "apply_bill_credit"],
-                "success",
-                None,
-                42,
-            ),
-            (
-                "seed-bd-3",
-                "billing_dispute",
-                ["pull_account_billing", "escalate_tier2"],
-                "failure",
-                "escalate_tier2",
-                28,
-            ),
-            (
-                "seed-ph-1",
-                "phone_service_issue",
-                ["reset_apn_settings", "reboot_modem"],
-                "success",
-                None,
-                40,
-            ),
-            (
-                "seed-ph-2",
-                "phone_service_issue",
-                ["reset_apn_settings"],
-                "success",
-                None,
-                25,
-            ),
-            (
-                "seed-ph-3",
-                "phone_service_issue",
-                ["factory_reset_router"],
-                "failure",
-                "factory_reset_router",
-                12,
-            ),
-            ("seed-sim-1", "sim_activation", ["activate_sim"], "success", None, 30),
-            ("seed-sim-2", "sim_activation", ["activate_sim"], "success", None, 28),
-        ]
-    )
 
     for session_id, task_type, steps, outcome, failure_step, duration in demo:
         conn = sqlite3.connect(DB_PATH)

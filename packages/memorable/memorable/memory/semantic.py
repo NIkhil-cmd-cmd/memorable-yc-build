@@ -9,11 +9,10 @@ from memorable.moss.client import MossSearch
 
 CROSS_TASK_WARNINGS = [
     {
-        "id": "sem-xfer-reset",
+        "id": "sem-xfer-fare",
         "text": (
-            "Warning: reset_network_settings has a high failure rate in related "
-            "connectivity tasks — this is the same pattern as factory_reset_router "
-            "for internet issues. Avoid full resets for phone connectivity complaints."
+            "Warning: retrying restricted fare classes has a high failure rate in related "
+            "rebooking tasks. Prefer waiver validation and partner-flight routing first."
         ),
     },
 ]

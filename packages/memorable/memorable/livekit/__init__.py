@@ -26,7 +26,7 @@ class MemoryHook:
         memory: Memorable,
         mode: MemoryMode = "full",
         session_id: str = "livekit",
-        task_type: str = "internet_dropout",
+        task_type: str = "flight_rebooking",
     ) -> None:
         self.memory = memory
         self.mode = mode

@@ -27,9 +27,11 @@ const USER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 export const revalidate = 0;
 
 export async function POST(req: Request) {
-  if (process.env.NODE_ENV !== 'development') {
+  const allowPublicDemo =
+    process.env.ALLOW_PUBLIC_DEMO === '1' || process.env.ALLOW_PUBLIC_DEMO === 'true';
+  if (process.env.NODE_ENV !== 'development' && !allowPublicDemo) {
     throw new Error(
-      'THIS API ROUTE IS INSECURE. DO NOT USE THIS ROUTE IN PRODUCTION WITHOUT AN AUTHENTICATION LAYER.'
+      'Token minting is disabled. Set ALLOW_PUBLIC_DEMO=true for hackathon demos or add auth.'
     );
   }
 
@@ -65,10 +67,7 @@ export async function POST(req: Request) {
       roomConfig.agents.push(new RoomAgentDispatch({ agentName: AGENT_NAME ?? '' }));
     }
     const memoryMode = body?.memory_mode === 'cold' ? 'cold' : 'full';
-    const scenarioId =
-      body?.scenario_id === 'billing_dispute' || body?.scenario_id === 'phone_service_issue'
-        ? body.scenario_id
-        : 'internet_dropout';
+    const scenarioId = 'flight_rebooking';
     const runId =
       typeof body?.run_id === 'string' && body.run_id.trim().length > 0 ? body.run_id.trim() : null;
     const requestedRoute = typeof body?.model_route === 'string' ? body.model_route.trim() : '';

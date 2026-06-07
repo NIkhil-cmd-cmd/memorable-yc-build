@@ -9,7 +9,7 @@ const ROOT = path.resolve(process.cwd(), '../..');
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const task = searchParams.get('task') ?? 'internet_dropout';
+  const task = searchParams.get('task') ?? 'flight_rebooking';
 
   const script = `
 import json

@@ -11,7 +11,7 @@ export function MemoryGraph() {
   const [graph, setGraph] = useState<GraphData | null>(null);
 
   useEffect(() => {
-    fetch('/api/memory/graph?task=internet_dropout')
+    fetch('/api/memory/graph?task=flight_rebooking')
       .then((r) => r.json())
       .then(setGraph)
       .catch(() => setGraph({ nodes: [], edges: [] }));
@@ -27,7 +27,7 @@ export function MemoryGraph() {
 
   return (
     <div className="glass-panel-strong p-6">
-      <p className="section-label mb-4">GNN workflow graph — internet_dropout</p>
+      <p className="section-label mb-4">GNN workflow graph — flight_rebooking</p>
       <div className="relative h-64 overflow-hidden rounded-lg bg-black/30">
         <svg viewBox="0 0 400 240" className="h-full w-full">
           {graph.edges.map((edge, i) => {

@@ -41,9 +41,11 @@ def _pick_knowledge_hit(hits: list[dict], query: str) -> dict | None:
     query_lower = query.lower()
     for hit in hits:
         text_lower = hit["text"].lower()
-        if "internet" in query_lower and "internet" in text_lower:
+        if "flight" in query_lower and "flight" in text_lower:
             return hit
-        if "drop" in query_lower and "drop" in text_lower:
+        if "rebook" in query_lower and "rebook" in text_lower:
+            return hit
+        if "cancel" in query_lower and "waiver" in text_lower:
             return hit
     return hits[0]
 

@@ -6,6 +6,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -28,7 +29,7 @@ from memorable import Memorable
 from memorable.livekit import MemoryHook, parse_room_metadata
 from memorable.livekit.briefing import format_backend_results, systems_note_for_tool
 from memorable.memory.tools import (
-    DEMO_ZIP,
+    DEMO_ROUTE,
     pending_playbook_tools,
 )
 
@@ -118,9 +119,9 @@ def _resolve_scenario(ctx: JobContext) -> str:
     for raw in (ctx.job.metadata, getattr(ctx.room, "metadata", None)):
         meta = parse_room_metadata(raw)
         scenario = meta.get("scenario_id")
-        if scenario in ("internet_dropout", "billing_dispute", "phone_service_issue"):
+        if scenario == "flight_rebooking":
             return scenario
-    return "internet_dropout"
+    return "flight_rebooking"
 
 
 def _resolve_run_id(ctx: JobContext) -> str | None:
@@ -154,23 +155,23 @@ class SupportAgent(Agent):
         room=None,
     ):
         if mode == "full":
-            instructions = f"""You are Jordan, an ISP phone support agent.
+            instructions = f"""You are Jordan, an airline disruption support agent.
 
-Institutional memory from past calls guides troubleshooting. You receive backend
+Institutional memory from past calls guides rebooking. You receive backend
 results before you speak — relay them naturally in order.
 
-Account zip {DEMO_ZIP} is on file. Use it for outage checks; do not ask for zip first.
-If asked how you know their area, say you looked up outages for the zip on their account.
+Primary route {DEMO_ROUTE} is on file. Use this when describing options.
+Prioritize valid same-day options and policy-compliant actions.
 
 Never claim you ran a check unless you received a backend result for it this turn.
 Never mention memory, tools, or playbooks. Sound human."""
         else:
-            instructions = f"""You are Jordan, an ISP phone support agent.
+            instructions = f"""You are Jordan, an airline disruption support agent.
 
 You have no notes from past calls. You receive backend results before you speak —
 relay them naturally.
 
-Account zip {DEMO_ZIP} is on file for outage checks if needed.
+Primary route {DEMO_ROUTE} is on file for context.
 
 Never claim you ran a check unless you received a backend result for it this turn.
 Never mention tools or systems. Sound human."""
@@ -184,27 +185,35 @@ Never mention tools or systems. Sound human."""
         self._moss_ready = moss_ready
         self._room = room
         self._playbook_started = False
+        self.trace_events: list[dict[str, Any]] = []
 
     async def _emit(self, event_type: str, data: dict) -> None:
-        data = {
+        enriched = {
             **data,
             "mode": self.mode,
             "scenario_id": self.scenario_id,
             "run_id": self.run_id,
             "model_route": self.model_route,
         }
-        await publish_event(event_type, data)
+        ts = datetime.now(timezone.utc).isoformat()
+        trace_entry = {"type": event_type, "timestamp": ts, "data": enriched}
+        self.trace_events.append(trace_entry)
+        if len(self.trace_events) > 250:
+            self.trace_events = self.trace_events[-250:]
+
+        logger.info("trace_event=%s", json.dumps(trace_entry, ensure_ascii=False))
+        await publish_event(event_type, enriched)
         if self._room is None:
             return
         try:
             await self._room.local_participant.publish_data(
-                json.dumps({"type": event_type, **data}).encode("utf-8"),
+                json.dumps({"type": event_type, **enriched}).encode("utf-8"),
                 reliable=True,
             )
         except Exception:
             pass
 
-    async def _run_tool(self, tool_name: str, zip_code: str | None = None) -> str | None:
+    async def _run_tool(self, tool_name: str) -> str | None:
         if tool_name in self.hook.steps:
             return None
 
@@ -216,15 +225,14 @@ Never mention tools or systems. Sound human."""
             return None
 
         runners = {
-            "check_outage_map": lambda: self._do_check_outage_map(zip_code or DEMO_ZIP),
-            "check_line_signal": self._do_check_line_signal,
-            "reboot_modem": self._do_reboot_modem,
-            "factory_reset_router": self._do_factory_reset_router,
-            "run_speed_test": self._do_run_speed_test,
-            "pull_account_billing": self._do_pull_account_billing,
-            "apply_bill_credit": self._do_apply_bill_credit,
-            "escalate_tier2": self._do_escalate_tier2,
-            "reset_apn_settings": self._do_reset_apn_settings,
+            "check_waiver_status": self._do_check_waiver_status,
+            "search_partner_flights": self._do_search_partner_flights,
+            "apply_same_day_policy": self._do_apply_same_day_policy,
+            "auto_rebook_and_issue_voucher": self._do_auto_rebook_and_issue_voucher,
+            "search_basic_fares": self._do_search_basic_fares,
+            "choose_late_connection": self._do_choose_late_connection,
+            "retry_booking_failed_fare_class": self._do_retry_booking_failed_fare_class,
+            "escalate_manual_ticketing": self._do_escalate_manual_ticketing,
         }
         fn = runners.get(tool_name)
         if not fn:
@@ -234,7 +242,12 @@ Never mention tools or systems. Sound human."""
         summary = systems_note_for_tool(tool_name, raw)
         outcome = (
             "failure"
-            if tool_name in {"factory_reset_router", "escalate_tier2"}
+            if tool_name
+            in {
+                "retry_booking_failed_fare_class",
+                "escalate_manual_ticketing",
+                "choose_late_connection",
+            }
             else "success"
         )
         await self._emit(
@@ -261,10 +274,6 @@ Never mention tools or systems. Sound human."""
                 await self._moss_ready
             except Exception:
                 pass
-
-        zip_code = DEMO_ZIP
-        if user_text.strip().isdigit() and len(user_text.strip()) == 5:
-            zip_code = user_text.strip()
 
         briefing = await self.hook.on_user_turn(user_text)
         result = self.hook.last_result or {}
@@ -320,7 +329,7 @@ Never mention tools or systems. Sound human."""
                 avoid_tools=self.hook.avoid_tools,
             )
             for tool in to_run:
-                note = await self._run_tool(tool, zip_code=zip_code)
+                note = await self._run_tool(tool)
                 if note:
                     tool_notes.append(note)
 
@@ -332,86 +341,77 @@ Never mention tools or systems. Sound human."""
 
         turn_ctx.add_message(role="developer", content="\n".join(lines))
 
-    async def _do_check_outage_map(self, zip_code: str = DEMO_ZIP) -> str:
-        self.hook.record_tool("check_outage_map")
-        return f"No outages near {zip_code}."
+    async def _do_check_waiver_status(self) -> str:
+        self.hook.record_tool("check_waiver_status")
+        return "Disruption waiver active for this route; change penalties can be waived."
 
-    async def _do_check_line_signal(self) -> str:
-        self.hook.record_tool("check_line_signal")
-        return "Line signal weak at −18 dBm."
+    async def _do_search_partner_flights(self) -> str:
+        self.hook.record_tool("search_partner_flights")
+        return "Partner inventory found seat on a same-day itinerary arriving 20:15."
 
-    async def _do_reboot_modem(self) -> str:
-        self.hook.record_tool("reboot_modem")
-        return "Modem reboot sent."
+    async def _do_apply_same_day_policy(self) -> str:
+        self.hook.record_tool("apply_same_day_policy")
+        return "Same-day policy validated and applied with no change fee."
 
-    async def _do_factory_reset_router(self) -> str:
-        self.hook.record_tool("factory_reset_router", outcome="failure")
-        return "Factory reset failed — router did not come back online."
+    async def _do_auto_rebook_and_issue_voucher(self) -> str:
+        self.hook.record_tool("auto_rebook_and_issue_voucher")
+        return "Rebooking confirmed and a disruption voucher has been issued."
 
-    async def _do_run_speed_test(self) -> str:
-        self.hook.record_tool("run_speed_test")
-        return "Speed test 45/12 Mbps — looks fine on paper."
+    async def _do_search_basic_fares(self) -> str:
+        self.hook.record_tool("search_basic_fares")
+        return "Basic fare search returned limited options with long layovers."
 
-    async def _do_pull_account_billing(self) -> str:
-        self.hook.record_tool("pull_account_billing")
-        return "Billing history loaded: duplicate prorated fee detected."
+    async def _do_choose_late_connection(self) -> str:
+        self.hook.record_tool("choose_late_connection", outcome="failure")
+        return "Late-connection option selected; projected missed arrival window."
 
-    async def _do_apply_bill_credit(self) -> str:
-        self.hook.record_tool("apply_bill_credit")
-        return "Applied one-time $25 service credit and corrected recurring line item."
+    async def _do_retry_booking_failed_fare_class(self) -> str:
+        self.hook.record_tool("retry_booking_failed_fare_class", outcome="failure")
+        return "Retry failed: selected fare class is restricted under disruption rules."
 
-    async def _do_escalate_tier2(self) -> str:
-        self.hook.record_tool("escalate_tier2", outcome="failure")
-        return "Escalation queued with 48-hour SLA; customer issue unresolved on call."
-
-    async def _do_reset_apn_settings(self) -> str:
-        self.hook.record_tool("reset_apn_settings")
-        return "APN reset pushed. Voice/data registration restored after network reattach."
+    async def _do_escalate_manual_ticketing(self) -> str:
+        self.hook.record_tool("escalate_manual_ticketing", outcome="failure")
+        return "Escalated to manual ticketing queue; customer still waiting."
 
     @function_tool
-    async def check_outage_map(self, zip_code: str = DEMO_ZIP) -> str:
-        """Check regional outage map."""
-        return await self._run_tool("check_outage_map", zip_code=zip_code) or "Already checked."
+    async def check_waiver_status(self) -> str:
+        """Check disruption waiver eligibility for current itinerary."""
+        return await self._run_tool("check_waiver_status") or "Already checked."
 
     @function_tool
-    async def check_line_signal(self) -> str:
-        """Check line signal quality."""
-        return await self._run_tool("check_line_signal") or "Already checked."
+    async def search_partner_flights(self) -> str:
+        """Search partner-airline inventory for compliant same-day options."""
+        return await self._run_tool("search_partner_flights") or "Already searched."
 
     @function_tool
-    async def reboot_modem(self) -> str:
-        """Reboot customer modem."""
-        return await self._run_tool("reboot_modem") or "Already rebooted."
+    async def apply_same_day_policy(self) -> str:
+        """Apply same-day policy to the selected option."""
+        return await self._run_tool("apply_same_day_policy") or "Already applied."
 
     @function_tool
-    async def factory_reset_router(self) -> str:
-        """Factory reset router."""
-        return await self._run_tool("factory_reset_router") or "Already attempted."
+    async def auto_rebook_and_issue_voucher(self) -> str:
+        """Finalize rebooking and issue disruption voucher."""
+        return await self._run_tool("auto_rebook_and_issue_voucher") or "Already completed."
 
     @function_tool
-    async def run_speed_test(self) -> str:
-        """Run speed test."""
-        return await self._run_tool("run_speed_test") or "Already tested."
+    async def search_basic_fares(self) -> str:
+        """Search baseline fares without memory-assisted routing."""
+        return await self._run_tool("search_basic_fares") or "Already searched."
 
     @function_tool
-    async def pull_account_billing(self) -> str:
-        """Load billing account details."""
-        return await self._run_tool("pull_account_billing") or "Already reviewed."
+    async def choose_late_connection(self) -> str:
+        """Choose a late connection from baseline options."""
+        return await self._run_tool("choose_late_connection") or "Already attempted."
 
     @function_tool
-    async def apply_bill_credit(self) -> str:
-        """Apply billing credit."""
-        return await self._run_tool("apply_bill_credit") or "Already applied."
+    async def retry_booking_failed_fare_class(self) -> str:
+        """Retry booking on a restricted fare class."""
+        return await self._run_tool("retry_booking_failed_fare_class") or "Already attempted."
 
     @function_tool
-    async def escalate_tier2(self) -> str:
-        """Escalate case to tier 2."""
-        return await self._run_tool("escalate_tier2") or "Already escalated."
-
-    @function_tool
-    async def reset_apn_settings(self) -> str:
-        """Reset mobile APN settings."""
-        return await self._run_tool("reset_apn_settings") or "Already reset."
+    async def escalate_manual_ticketing(self) -> str:
+        """Escalate to manual ticketing when automation cannot complete."""
+        return await self._run_tool("escalate_manual_ticketing") or "Already escalated."
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -430,10 +430,45 @@ async def entrypoint(ctx: JobContext) -> None:
     requested_route = _resolve_model_route(ctx)
     llm_runtime, active_route = _build_llm(requested_route)
 
-    logger.info("Session %s mode=%s metadata=%s", sid, mode, ctx.job.metadata)
+    room_name = getattr(ctx.room, "name", "")
+    room_sid = getattr(ctx.room, "sid", "")
+    participant_sid = getattr(getattr(ctx.room, "local_participant", None), "sid", "")
+
+    logger.info(
+        "Session %s mode=%s route=%s room=%s room_sid=%s metadata=%s",
+        sid,
+        mode,
+        active_route,
+        room_name,
+        room_sid,
+        ctx.job.metadata,
+    )
     await publish_event(
         "session_start",
-        {"session_id": sid, "mode": mode, "scenario_id": scenario_id, "run_id": run_id},
+        {
+            "session_id": sid,
+            "mode": mode,
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "model_route": active_route,
+            "room_name": room_name,
+            "room_sid": room_sid,
+            "participant_sid": participant_sid,
+        },
+    )
+    await publish_event(
+        "livekit_trace",
+        {
+            "session_id": sid,
+            "mode": mode,
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "model_route": active_route,
+            "room_name": room_name,
+            "room_sid": room_sid,
+            "participant_sid": participant_sid,
+            "job_metadata": ctx.job.metadata or "",
+        },
     )
 
     moss_ready = asyncio.create_task(memory.ensure_loaded())
@@ -473,12 +508,33 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     await ctx.connect()
     await session.generate_reply(
-        instructions="Greet briefly. Ask how you can help with their service."
+        instructions="Greet briefly. Ask where they need to arrive and when."
     )
 
     async def on_shutdown() -> None:
-        outcome = "failure" if "factory_reset_router" in hook.steps else "success"
+        outcome = (
+            "failure"
+            if {
+                "retry_booking_failed_fare_class",
+                "escalate_manual_ticketing",
+            }
+            & set(hook.steps)
+            else "success"
+        )
         hook.finalize(outcome=outcome)
+        await publish_event(
+            "trace_snapshot",
+            {
+                "session_id": sid,
+                "mode": mode,
+                "scenario_id": scenario_id,
+                "run_id": run_id,
+                "model_route": active_route,
+                "trace_events": agent.trace_events,
+                "steps": hook.steps,
+                "outcome": outcome,
+            },
+        )
         await publish_event(
             "session_end",
             {

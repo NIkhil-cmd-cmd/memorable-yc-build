@@ -36,12 +36,12 @@ export function ComparisonPanel({ coldTools, memoryTools }: Props) {
             </tr>
           ))}
           <tr>
-            <td className="py-3 text-white/50">Factory reset</td>
+            <td className="py-3 text-white/50">Restricted fare retry</td>
             <td className="py-3 text-red-300">
-              {coldTools.includes('factory_reset_router') ? 'Yes ✗' : 'Maybe'}
+              {coldTools.includes('retry_booking_failed_fare_class') ? 'Yes ✗' : 'Maybe'}
             </td>
             <td className="py-3 text-cyan-300">
-              {memoryTools.includes('factory_reset_router') ? 'Yes ✗' : 'Blocked ✓'}
+              {memoryTools.includes('retry_booking_failed_fare_class') ? 'Yes ✗' : 'Blocked ✓'}
             </td>
           </tr>
         </tbody>

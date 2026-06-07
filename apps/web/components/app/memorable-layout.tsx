@@ -49,7 +49,7 @@ export function MemorableLayout({ appConfig }: MemorableLayoutProps) {
           </div>
           <div>
             <p className="text-sm font-semibold text-[#f1f5f9]">Voice Agent</p>
-            <p className="text-[11px] text-[#64748b]">Telecom ISP support</p>
+            <p className="text-[11px] text-[#64748b]">Airline rebooking support</p>
           </div>
         </header>
 
@@ -67,7 +67,7 @@ export function MemorableLayout({ appConfig }: MemorableLayoutProps) {
               <MotionSessionView
                 key="session-view"
                 {...VIEW_MOTION_PROPS}
-                preConnectMessage="Try: My internet keeps dropping"
+                preConnectMessage="Try: My flight got canceled and I need to get to SF tonight"
                 supportsChatInput={appConfig.supportsChatInput}
                 supportsVideoInput={false}
                 supportsScreenShare={false}

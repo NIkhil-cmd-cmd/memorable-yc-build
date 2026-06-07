@@ -1,6 +1,6 @@
 export type BenchmarkMode = 'cold' | 'full';
 
-export type BenchmarkScenario = 'internet_dropout' | 'billing_dispute' | 'phone_service_issue';
+export type BenchmarkScenario = 'flight_rebooking';
 
 export type BenchmarkEventType =
   | 'session_start'
