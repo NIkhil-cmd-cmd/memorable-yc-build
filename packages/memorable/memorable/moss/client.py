@@ -82,11 +82,21 @@ class MossSearch:
     async def _replace_index(
         self, physical_index: str, moss_docs: list[DocumentInfo]
     ) -> None:
+        def _is_build_in_progress(exc: Exception) -> bool:
+            msg = str(exc)
+            return "409" in msg and "BUILD_IN_PROGRESS" in msg
+
         client = self._get_client()
         existing = {idx.name for idx in await client.list_indexes()}
-        if physical_index in existing:
-            await client.delete_index(physical_index)
-        await client.create_index(physical_index, moss_docs, self._model_id)
+        try:
+            if physical_index in existing:
+                await client.delete_index(physical_index)
+            await client.create_index(physical_index, moss_docs, self._model_id)
+        except RuntimeError as exc:
+            # Another build on this index is already running; keep current index state.
+            if _is_build_in_progress(exc):
+                return
+            raise
         await self.reload_index(physical_index)
 
     async def index_documents(self, physical_index: str, docs: list[dict]) -> None:

@@ -591,13 +591,7 @@ function WorkflowGraph({
           );
         })}
 
-        {phase !== 'cold' && memoryPathD && memorySteps.length > 1 && (
-          <circle r="6.8" className="mem-graph-travel-dot">
-            <animateMotion dur="2.3s" repeatCount="indefinite">
-              <mpath href="#mem-live-path" />
-            </animateMotion>
-          </circle>
-        )}
+        {/* moving replay dot removed for cleaner graph readability */}
       </svg>
     </section>
   );

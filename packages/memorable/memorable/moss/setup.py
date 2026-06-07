@@ -15,11 +15,21 @@ async def ensure_indexes(
     knowledge_docs: list[DocumentInfo],
     model_id: str = "moss-minilm",
 ) -> None:
+    async def _create_index_safe(name: str, docs: list[DocumentInfo]) -> None:
+        try:
+            await client.create_index(name, docs, model_id)
+        except RuntimeError as exc:
+            msg = str(exc)
+            # Moss may return 409 while another build is still finishing.
+            if "409" in msg and "BUILD_IN_PROGRESS" in msg:
+                return
+            raise
+
     existing = {idx.name for idx in await client.list_indexes()}
     if "knowledge" not in existing:
-        await client.create_index("knowledge", knowledge_docs, model_id)
+        await _create_index_safe("knowledge", knowledge_docs)
     if "memory" not in existing:
-        await client.create_index(
+        await _create_index_safe(
             "memory",
             [
                 DocumentInfo(
@@ -33,10 +43,9 @@ async def ensure_indexes(
                     metadata={"layer": "semantic"},
                 ),
             ],
-            model_id,
         )
     if "workflows" not in existing:
-        await client.create_index(
+        await _create_index_safe(
             "workflows",
             [
                 DocumentInfo(
@@ -44,7 +53,6 @@ async def ensure_indexes(
                     text="No workflow recommendations yet. Train the GNN first.",
                 )
             ],
-            model_id,
         )
 
 

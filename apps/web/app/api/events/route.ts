@@ -3,25 +3,35 @@ import { subscribe } from '@/lib/events';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let unsub: (() => void) | null = null;
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
       const send = (data: unknown) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          /* client disconnected */
+        }
       };
 
       send({ type: 'connected', timestamp: new Date().toISOString() });
 
-      const unsub = subscribe((event) => send(event));
+      unsub = subscribe((event) => send(event));
 
-      const heartbeat = setInterval(() => {
-        controller.enqueue(encoder.encode(': heartbeat\n\n'));
+      heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(': heartbeat\n\n'));
+        } catch {
+          if (heartbeat) clearInterval(heartbeat);
+        }
       }, 15000);
-
-      return () => {
-        unsub();
-        clearInterval(heartbeat);
-      };
+    },
+    cancel() {
+      unsub?.();
+      if (heartbeat) clearInterval(heartbeat);
     },
   });
 
