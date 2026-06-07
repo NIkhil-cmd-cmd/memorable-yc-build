@@ -340,22 +340,6 @@ export function LandingPage() {
   const [navScrolled, setNavScrolled] = useState(false);
   const [terminalLines, setTerminalLines] = useState<string[]>([]);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
-  const problemLead = useMemo(
-    () =>
-      'agents spend time trying to relearn workflows,'.split('').map((ch, idx) => ({
-        ch,
-        delay: `${idx * 0.017}s`,
-      })),
-    []
-  );
-  const problemBurning = useMemo(
-    () =>
-      'burning '.split('').map((ch, idx) => ({
-        ch,
-        delay: `${0.48 + idx * 0.017}s`,
-      })),
-    []
-  );
 
   const heroLetters = useMemo(
     () => HERO_WORD.split('').map((ch, i) => ({ ch, delay: `${i * 0.05}s` })),
@@ -383,6 +367,23 @@ export function LandingPage() {
     );
 
     nodes.forEach((n) => observer.observe(n));
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const inkNodes = Array.from(document.querySelectorAll<HTMLElement>('.ink-trigger'));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('ink-visible');
+          }
+        }
+      },
+      { threshold: 0.62, rootMargin: '0px 0px -10% 0px' }
+    );
+
+    inkNodes.forEach((n) => observer.observe(n));
     return () => observer.disconnect();
   }, []);
 
@@ -501,313 +502,274 @@ export function LandingPage() {
             </div>
           </section>
 
-          <section className="section-block mem-reveal">
-            <RotatedSquares section="problem" />
-            <p className="mem-section-label">↳ problem</p>
-            <div className="problem-stage">
-              <div className="problem-maze-center" aria-hidden="true">
-                <svg viewBox="0 0 1200 320" width="100%">
-                  <path
-                    id="problem-path-l"
-                    className="problem-maze-path"
-                    d="M20 160H220V118H430V160H600"
-                  />
-                  <path
-                    id="problem-path-r"
-                    className="problem-maze-path"
-                    d="M1180 160H980V118H770V160H600"
-                  />
-                  <path
-                    id="problem-path-t"
-                    className="problem-maze-path"
-                    d="M600 12V62H654V118H600V160"
-                  />
-                  <path
-                    id="problem-path-b"
-                    className="problem-maze-path"
-                    d="M600 308V252H546V200H600V160"
-                  />
-                  <path
-                    id="problem-path-lt"
-                    className="problem-maze-path"
-                    d="M60 42H220V102H432V152H600"
-                  />
-                  <path
-                    id="problem-path-rt"
-                    className="problem-maze-path"
-                    d="M1140 42H980V102H768V152H600"
-                  />
-                  <path
-                    id="problem-path-lb"
-                    className="problem-maze-path"
-                    d="M60 278H242V220H432V170H600"
-                  />
-                  <path
-                    id="problem-path-rb"
-                    className="problem-maze-path"
-                    d="M1140 278H958V220H768V170H600"
-                  />
-                  <circle className="problem-maze-core" cx="600" cy="160" r="7" />
-                  {[
-                    ['problem-path-l', '10.5s', '0s'],
-                    ['problem-path-r', '11.2s', '0.8s'],
-                    ['problem-path-t', '12s', '0.4s'],
-                    ['problem-path-b', '12.7s', '1.1s'],
-                    ['problem-path-lt', '11.8s', '0.6s'],
-                    ['problem-path-rt', '12.4s', '1.4s'],
-                    ['problem-path-lb', '13.2s', '1s'],
-                    ['problem-path-rb', '13.8s', '1.8s'],
-                  ].map(([pathId, dur, begin]) => (
-                    <circle key={pathId} className="problem-maze-dot" r="2.3">
-                      <animateMotion dur={dur} begin={begin} repeatCount="indefinite">
-                        <mpath href={`#${pathId}`} />
-                      </animateMotion>
-                    </circle>
-                  ))}
-                </svg>
-              </div>
-              <h2 className="problem-title">
-                {problemLead.map(({ ch, delay }, idx) => (
-                  <span
-                    key={`lead-${idx}`}
-                    className="problem-char"
-                    style={{ '--d': delay } as CSSProperties & Record<'--d', string>}
-                  >
-                    {ch === ' ' ? '\u00A0' : ch}
+          <section className="section-block section-sticky mem-reveal">
+            <div className="section-stick">
+              <RotatedSquares section="problem" />
+              <p className="mem-section-label">↳ problem</p>
+              <div className="problem-stage">
+                <div className="problem-maze-center" aria-hidden="true">
+                  <svg viewBox="0 0 1200 320" width="100%">
+                    <path
+                      id="problem-path-l"
+                      className="problem-maze-path"
+                      d="M20 160H220V118H430V160H600"
+                    />
+                    <path
+                      id="problem-path-r"
+                      className="problem-maze-path"
+                      d="M1180 160H980V118H770V160H600"
+                    />
+                    <path
+                      id="problem-path-t"
+                      className="problem-maze-path"
+                      d="M600 12V62H654V118H600V160"
+                    />
+                    <path
+                      id="problem-path-b"
+                      className="problem-maze-path"
+                      d="M600 308V252H546V200H600V160"
+                    />
+                    <path
+                      id="problem-path-lt"
+                      className="problem-maze-path"
+                      d="M60 42H220V102H432V152H600"
+                    />
+                    <path
+                      id="problem-path-rt"
+                      className="problem-maze-path"
+                      d="M1140 42H980V102H768V152H600"
+                    />
+                    <path
+                      id="problem-path-lb"
+                      className="problem-maze-path"
+                      d="M60 278H242V220H432V170H600"
+                    />
+                    <path
+                      id="problem-path-rb"
+                      className="problem-maze-path"
+                      d="M1140 278H958V220H768V170H600"
+                    />
+                    <circle className="problem-maze-core" cx="600" cy="160" r="7" />
+                    {[
+                      ['problem-path-l', '10.5s', '0s'],
+                      ['problem-path-r', '11.2s', '0.8s'],
+                      ['problem-path-t', '12s', '0.4s'],
+                      ['problem-path-b', '12.7s', '1.1s'],
+                      ['problem-path-lt', '11.8s', '0.6s'],
+                      ['problem-path-rt', '12.4s', '1.4s'],
+                      ['problem-path-lb', '13.2s', '1s'],
+                      ['problem-path-rb', '13.8s', '1.8s'],
+                    ].map(([pathId, dur, begin]) => (
+                      <circle key={pathId} className="problem-maze-dot" r="2.3">
+                        <animateMotion dur={dur} begin={begin} repeatCount="indefinite">
+                          <mpath href={`#${pathId}`} />
+                        </animateMotion>
+                      </circle>
+                    ))}
+                    <rect
+                      x="408"
+                      y="106"
+                      width="384"
+                      height="108"
+                      rx="18"
+                      className="problem-maze-veil"
+                    />
+                  </svg>
+                </div>
+                <h2 className="problem-title">
+                  <span className="problem-line problem-line-1">
+                    agents spend time trying to relearn workflows,
                   </span>
-                ))}
-                <br />
-                {problemBurning.map(({ ch, delay }, idx) => (
-                  <span
-                    key={`burn-${idx}`}
-                    className="problem-char"
-                    style={{ '--d': delay } as CSSProperties & Record<'--d', string>}
-                  >
-                    {ch === ' ' ? '\u00A0' : ch}
-                  </span>
-                ))}
-                <span
-                  className="problem-word mem-accent-pink"
-                  style={{ '--d': '0.64s' } as CSSProperties & Record<'--d', string>}
-                >
-                  tokens
-                </span>
-                <span
-                  className="problem-char"
-                  style={{ '--d': '0.67s' } as CSSProperties & Record<'--d', string>}
-                >
-                  ,
-                </span>
-                <span
-                  className="problem-char"
-                  style={{ '--d': '0.69s' } as CSSProperties & Record<'--d', string>}
-                >
-                  {'\u00A0'}
-                </span>
-                <span
-                  className="problem-word mem-accent-purple"
-                  style={{ '--d': '0.72s' } as CSSProperties & Record<'--d', string>}
-                >
-                  time
-                </span>
-                <span
-                  className="problem-char"
-                  style={{ '--d': '0.75s' } as CSSProperties & Record<'--d', string>}
-                >
-                  ,
-                </span>
-                <span
-                  className="problem-char"
-                  style={{ '--d': '0.78s' } as CSSProperties & Record<'--d', string>}
-                >
-                  {'\u00A0'}
-                </span>
-                <span
-                  className="problem-char"
-                  style={{ '--d': '0.81s' } as CSSProperties & Record<'--d', string>}
-                >
-                  and
-                </span>
-                <span
-                  className="problem-char"
-                  style={{ '--d': '0.84s' } as CSSProperties & Record<'--d', string>}
-                >
-                  {'\u00A0'}
-                </span>
-                <span
-                  className="problem-word mem-accent-green"
-                  style={{ '--d': '0.87s' } as CSSProperties & Record<'--d', string>}
-                >
-                  money
-                </span>
-              </h2>
-            </div>
-          </section>
-
-          <section className="section-block mem-reveal" id="enterprise">
-            <RotatedSquares section="solution" />
-            <p className="mem-section-label">↳ solution</p>
-            <p className="solution-copy">
-              <span style={{ textDecoration: 'underline', textDecorationColor: 'var(--mem-pink)' }}>
-                Memorable
-              </span>{' '}
-              is a shared memory layer that <span className="solution-emphasis">automatically</span>{' '}
-              creates workflows
-              <br />
-              for
-            </p>
-            <h2 className="enterprise-text">ENTERPRISE AGENTS</h2>
-            <div className="agent-propagation" aria-hidden="true">
-              <div className="agent-source-wrap">
-                <div className="agent-source" />
-                <span className="agent-source-label">learns once</span>
-              </div>
-              <div className="agent-transfer">
-                <span className="transfer-line" />
-                <span className="transfer-dot" />
-              </div>
-              <div className="agent-stack">
-                {new Array(7).fill(0).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="agent-stack-item"
-                    style={{ animationDelay: `${idx * 0.2}s` }}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="section-block mem-reveal" id="integrations">
-            <p className="mem-section-label">↳ how it works</p>
-            <div className="step-row">
-              {STEP_CARDS.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  className={`step-card ${activeStep === card.id ? 'active' : ''}`}
-                  onMouseEnter={() => setActiveStep(card.id)}
-                  onFocus={() => setActiveStep(card.id)}
-                  aria-label={`Show ${card.title} flowchart`}
-                >
-                  <div style={{ width: 28, height: 28 }}>{card.icon}</div>
-                  <p className="step-name">{card.title}</p>
-                  <p className="step-desc">{card.desc}</p>
-                </button>
-              ))}
-            </div>
-
-            <p className="mem-quote">
-              &gt; In this repo, memory mode runs the same scenario as cold mode and logs both
-              traces for side-by-side comparison.
-            </p>
-
-            <FlowchartScenes active={activeStep} />
-            <div className="integration-grid">
-              <article className="integration-card">
-                <p className="integration-name">LiveKit</p>
-                <p className="integration-copy">
-                  Voice room transport + token minting through <code>/api/token</code>.
-                </p>
-                <p className="integration-state">
-                  {integrationStatus?.integrations.livekit.configured
-                    ? 'configured'
-                    : 'missing env vars'}
-                </p>
-              </article>
-              <article className="integration-card">
-                <p className="integration-name">Moss</p>
-                <p className="integration-copy">
-                  Retrieval over knowledge / memory / workflow indexes via Python SDK.
-                </p>
-                <p className="integration-state">
-                  {integrationStatus?.integrations.moss.configured
-                    ? 'configured'
-                    : 'missing env vars'}
-                </p>
-              </article>
-              <article className="integration-card">
-                <p className="integration-name">TrueFoundry</p>
-                <p className="integration-copy">
-                  Optional OpenAI-compatible gateway route for model inference.
-                </p>
-                <p className="integration-state">
-                  {integrationStatus?.integrations.truefoundry.configured
-                    ? 'configured'
-                    : 'optional, not configured'}
-                </p>
-              </article>
-            </div>
-          </section>
-
-          <section className="section-block mem-reveal">
-            <p className="mem-section-label">↳ memory formation</p>
-            <h2 className="solution-copy" style={{ fontFamily: 'var(--mem-serif)' }}>
-              Memorable seamlessly <strong>fits</strong> into{' '}
-              <span className="solution-emphasis">any</span> stack.
-            </h2>
-            <p style={{ marginTop: 12, color: 'var(--mem-muted)', fontSize: '0.9rem' }}>
-              → init db, system gets exponentially better over time.
-            </p>
-
-            <div className="pipeline-row">
-              {PIPELINE.map((label, idx) => (
-                <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    className="pipeline-pill mem-reveal"
-                    style={{ transitionDelay: `${idx * 0.08}s` }}
-                  >
-                    {label}
-                  </span>
-                  {idx < PIPELINE.length - 1 && <span className="pipeline-arrow">→</span>}
-                </span>
-              ))}
-            </div>
-
-            <div className="term-window" style={{ marginTop: 18 }}>
-              <div className="term-top">
-                <span />
-                <span />
-                <span />
-              </div>
-              <pre className="term-body" style={{ margin: 0 }}>
-                {`from memorable import Memorable
-memory = Memorable.from_env()
-await memory.init_all()
-result = await memory.query("billing dispute", mode="full")`}
-              </pre>
-            </div>
-          </section>
-
-          <section className="section-block mem-reveal" id="docs">
-            <div className="dev-grid">
-              <div>
-                <h2 className="dev-title">
-                  Build with memory.
                   <br />
-                  Ship <i style={{ fontStyle: 'italic' }}>intelligent</i> agents.
+                  <span className="problem-line problem-line-2">
+                    burning <span className="mem-accent-pink">tokens</span>,{' '}
+                    <span className="mem-accent-purple">time</span>, and{' '}
+                    <span className="mem-accent-green">money</span>
+                  </span>
                 </h2>
-                <ul className="dev-list">
-                  <li>REST APIs for benchmark runs, memory graph, and status</li>
-                  <li>Python SDK in packages/memorable</li>
-                  <li>LiveKit worker hook for cold/full memory mode</li>
-                  <li>SSE event stream + exportable JSON trace logs</li>
-                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section className="section-block section-sticky mem-reveal" id="enterprise">
+            <div className="section-stick">
+              <RotatedSquares section="solution" />
+              <p className="mem-section-label">↳ solution</p>
+              <p className="solution-copy section-title-reveal">
+                <span className="ink-trigger ink-underline">Memorable</span> is a shared memory
+                layer that{' '}
+                <span className="solution-emphasis ink-trigger ink-circle">automatically</span>{' '}
+                creates <span className="ink-trigger ink-underline">workflows</span>
+                <br />
+                for
+              </p>
+              <h2 className="enterprise-text section-title-reveal">ENTERPRISE AGENTS</h2>
+              <div className="agent-share" aria-hidden="true">
+                <div className="source-agent-wrap">
+                  <div className="source-agent" />
+                  <span className="source-agent-label">source agent</span>
+                </div>
+                <div className="memory-bus">
+                  <span className="bus-line" />
+                  <span className="bus-packet p1" />
+                  <span className="bus-packet p2" />
+                  <span className="bus-packet p3" />
+                </div>
+                <div className="agent-grid">
+                  {new Array(6).fill(0).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="agent-grid-item"
+                      style={{ animationDelay: `${idx * 0.22}s` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="section-block section-sticky mem-reveal" id="integrations">
+            <div className="section-stick">
+              <p className="mem-section-label">↳ how it works</p>
+              <div className="step-row">
+                {STEP_CARDS.map((card) => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    className={`step-card ${activeStep === card.id ? 'active' : ''}`}
+                    onMouseEnter={() => setActiveStep(card.id)}
+                    onFocus={() => setActiveStep(card.id)}
+                    aria-label={`Show ${card.title} flowchart`}
+                  >
+                    <div style={{ width: 28, height: 28 }}>{card.icon}</div>
+                    <p className="step-name">{card.title}</p>
+                    <p className="step-desc">{card.desc}</p>
+                  </button>
+                ))}
               </div>
 
-              <div className="term-window" id="dev-terminal">
+              <p className="mem-quote">
+                &gt; In this repo, memory mode runs the same scenario as cold mode and logs both
+                traces for side-by-side comparison.
+              </p>
+
+              <FlowchartScenes active={activeStep} />
+              <div className="integration-grid">
+                <article className="integration-card">
+                  <p className="integration-name">LiveKit</p>
+                  <p className="integration-copy">
+                    Voice room transport + token minting through <code>/api/token</code>.
+                  </p>
+                  <p className="integration-state">
+                    {integrationStatus?.integrations.livekit.configured
+                      ? 'configured'
+                      : 'missing env vars'}
+                  </p>
+                </article>
+                <article className="integration-card">
+                  <p className="integration-name">Moss</p>
+                  <p className="integration-copy">
+                    Retrieval over knowledge / memory / workflow indexes via Python SDK.
+                  </p>
+                  <p className="integration-state">
+                    {integrationStatus?.integrations.moss.configured
+                      ? 'configured'
+                      : 'missing env vars'}
+                  </p>
+                </article>
+                <article className="integration-card">
+                  <p className="integration-name">TrueFoundry</p>
+                  <p className="integration-copy">
+                    Optional OpenAI-compatible gateway route for model inference.
+                  </p>
+                  <p className="integration-state">
+                    {integrationStatus?.integrations.truefoundry.configured
+                      ? 'configured'
+                      : 'optional, not configured'}
+                  </p>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section className="section-block section-sticky mem-reveal">
+            <div className="section-stick">
+              <p className="mem-section-label">↳ memory formation</p>
+              <h2
+                className="solution-copy section-title-reveal"
+                style={{ fontFamily: 'var(--mem-serif)' }}
+              >
+                Memorable seamlessly <strong>fits</strong> into{' '}
+                <span className="solution-emphasis ink-trigger ink-circle">any</span> stack.
+              </h2>
+              <p style={{ marginTop: 12, color: 'var(--mem-muted)', fontSize: '0.9rem' }}>
+                → init db, system gets exponentially better over time.
+              </p>
+
+              <div className="pipeline-row">
+                {PIPELINE.map((label, idx) => (
+                  <span
+                    key={label}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <span
+                      className="pipeline-pill mem-reveal"
+                      style={{ transitionDelay: `${idx * 0.08}s` }}
+                    >
+                      {label}
+                    </span>
+                    {idx < PIPELINE.length - 1 && <span className="pipeline-arrow">→</span>}
+                  </span>
+                ))}
+              </div>
+
+              <div className="term-window" style={{ marginTop: 18 }}>
                 <div className="term-top">
                   <span />
                   <span />
                   <span />
                 </div>
-                <div className="term-body">
-                  {terminalLines.map((line, idx) => (
-                    <p key={`${idx}-${line}`} className="term-line">
-                      {line}
-                    </p>
-                  ))}
-                  <p className="term-line term-cursor">█</p>
+                <pre className="term-body" style={{ margin: 0 }}>
+                  {`from memorable import Memorable
+memory = Memorable.from_env()
+await memory.init_all()
+result = await memory.query("billing dispute", mode="full")`}
+                </pre>
+              </div>
+            </div>
+          </section>
+
+          <section className="section-block section-sticky mem-reveal" id="docs">
+            <div className="section-stick">
+              <div className="dev-grid">
+                <div>
+                  <h2 className="dev-title section-title-reveal">
+                    Build with memory.
+                    <br />
+                    Ship <i style={{ fontStyle: 'italic' }}>intelligent</i> agents.
+                  </h2>
+                  <ul className="dev-list">
+                    <li>REST APIs for benchmark runs, memory graph, and status</li>
+                    <li>Python SDK in packages/memorable</li>
+                    <li>LiveKit worker hook for cold/full memory mode</li>
+                    <li>SSE event stream + exportable JSON trace logs</li>
+                  </ul>
+                </div>
+
+                <div className="term-window" id="dev-terminal">
+                  <div className="term-top">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="term-body">
+                    {terminalLines.map((line, idx) => (
+                      <p key={`${idx}-${line}`} className="term-line">
+                        {line}
+                      </p>
+                    ))}
+                    <p className="term-line term-cursor">█</p>
+                  </div>
                 </div>
               </div>
             </div>
