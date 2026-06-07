@@ -1,0 +1,4 @@
+python-dotenv
+moss>=1.4
+torch>=2.0
+torch-geometric>=2.5

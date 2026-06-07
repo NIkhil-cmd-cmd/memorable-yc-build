@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memorable"
+version = "2.0.0"
+description = "Self-adapting memory layer for LiveKit voice agents (Moss + GNN)"
+requires-python = ">=3.10, <3.15"
+dependencies = [
+    "python-dotenv",
+    "moss>=1.4",
+    "torch>=2.0",
+    "torch-geometric>=2.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["memorable*"]

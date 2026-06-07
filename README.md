@@ -1,265 +1,514 @@
-# Moss Hacker Starter — LiveKit voice agent + Moss RAG & memory
+# Memorable
 
-A voice AI starter that pairs the official **[LiveKit](https://livekit.io) Agents** stack with
-**[Moss](https://usemoss.dev)** for retrieval. Talk to a "LiveKit docs helper" in the browser; it
-answers grounded in a Moss knowledge base (RAG) and remembers facts you tell it (agentic memory),
-scoped per user.
+**Self-adapting memory for enterprise voice agents.**
 
-Built entirely on the official LiveKit starter templates — `agent-starter-python` and
-`agent-starter-react` — adapted for Moss. The starters are the source of truth for current LiveKit
-idioms.
+Memorable gives LiveKit voice agents institutional memory — so they stop repeating mistakes (factory resets that fail, skipped outage checks) and start reusing what actually worked on past calls.
 
-## What you get
+Built for the [YC Conversational AI Hackathon 2026](https://events.ycombinator.com/conversational-ai-hackathon-2026).
 
-- **Voice agent** (`agent-py/`) — a Python LiveKit agent (`AgentServer` + `@server.rtc_session`)
-  with three tools:
-  - `search_knowledge` — semantic search (RAG) over the static **`knowledge`** Moss index.
-  - `remember_fact` — writes a fact to the **`memory`** Moss index, tagged with your `user_id`.
-  - `recall_facts` — reads back *your* facts only, via a per-user metadata filter.
-- **Frontend** (`frontend/`) — the React/Next.js starter, rebranded as the "Moss LiveKit Docs
-  Helper", with a live **Knowledge Matches** panel that shows the retrieved chunks and relevance
-  scores in real time as the agent searches.
-- **Indexer** (`agent-py/src/create_index.py`) — builds both Moss indexes from
-  `agent-py/knowledge.json`.
+| Component | Role |
+|-----------|------|
+| **LiveKit** | Real-time voice transport, STT/TTS, agent dispatch |
+| **Moss** | Semantic retrieval across knowledge, traces, and workflow indexes |
+| **Memorable** | Trace store → pattern extraction → GNN playbooks → runtime injection |
+| **TrueFoundry** *(optional)* | LLM gateway routing (OpenAI, MiniMax, etc.) |
 
-### Only two sets of credentials
+---
 
-You need **LiveKit** and **Moss** credentials — nothing else. Speech-to-text, the LLM, and
-text-to-speech all run through **[LiveKit Inference](https://docs.livekit.io/agents/models/)**
-(model strings, billed through LiveKit), so there are **no OpenAI / Deepgram / Cartesia / embedding
-API keys** to manage anywhere in this repo.
+## The problem
 
-## Architecture
+Enterprise support agents forget everything between calls. A cold agent with only static docs will:
 
-```
-  ┌──────────────────────┐         ┌────────────────────────────┐
-  │  Browser frontend     │  WebRTC │   LiveKit Cloud             │
-  │  (Next.js, frontend/) │◀───────▶│   • media transport         │
-  │  • mic / audio         │  data   │   • Inference: STT/LLM/TTS  │
-  │  • Knowledge Matches   │  packets│   • agent dispatch          │
-  └──────────┬───────────┘         └─────────────┬──────────────┘
-             │  POST /api/token                    │ dispatch (agent_name="agent-py",
-             │  → mints lk_moss_user cookie         │            metadata {"user_id": …})
-             │  → stamps {"user_id"} as dispatch    │
-             │     metadata                          ▼
-             │                          ┌────────────────────────────┐
-             │   moss_context data ◀────│  Python voice agent         │
-             └──────── packets ─────────│  (agent-py/, AgentServer)   │
-                                        │  search_knowledge / remember │
-                                        │  _fact / recall_facts        │
-                                        └─────────────┬──────────────┘
-                                                      │  Moss SDK
-                                                      ▼
-                                        ┌────────────────────────────┐
-                                        │  Moss                       │
-                                        │  • knowledge index (RAG)    │
-                                        │  • memory  index (per-user) │
-                                        └────────────────────────────┘
+- Skip outage checks and jump to destructive resets
+- Repeat tool sequences that failed dozens of times before
+- Burn tokens re-discovering the same diagnosis path
+
+Memorable closes the loop: **every tool call becomes a trace**, patterns aggregate into semantic memory, and a GNN distills compact playbooks that change runtime behavior.
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+  subgraph ingest [Ingest]
+    LK[LiveKit session]
+    TR[Tool traces]
+  end
+
+  subgraph memory [3-Layer Memory]
+    L1[L1 Episodic\nSQLite + Moss]
+    L2[L2 Semantic\nMoss patterns]
+    L3[L3 Workflow\nGNN → Moss]
+  end
+
+  subgraph runtime [Runtime]
+    CAS[Cascade query]
+    AG[Voice agent]
+    UI[Benchmark UI]
+  end
+
+  LK --> TR --> L1
+  L1 --> L2 --> L3
+  L3 --> CAS --> AG
+  AG --> UI
+  TR --> UI
 ```
 
-The frontend's token route (`frontend/app/api/token/route.ts`) sets an httpOnly `lk_moss_user`
-cookie (a random UUID) on first visit and stamps `{"user_id": "<uuid>"}` into the agent's dispatch
-metadata. The agent reads it from `ctx.job.metadata` and uses it to scope memory reads/writes, so
-each browser gets its own private memory that persists across reconnects.
+### Memory layers
 
-## Repository layout
+| Layer | Storage | What it captures |
+|-------|---------|------------------|
+| **L1 Episodic** | SQLite (`data/memorable.db`) + Moss `memory` index | Raw tool-call sequences per session with outcomes |
+| **L2 Semantic** | Moss `memory` index | Aggregated patterns — e.g. *"factory reset failed 5×, modem reboot succeeded 8×"* |
+| **L3 Workflow** | PyTorch Geometric GNN → Moss `workflows` index | Distilled playbooks with RECOMMENDED / AVOID tool lists |
 
-```
-moss-hacker-starter/
-├── agent-py/                  # Python voice agent (uv-managed)
-│   ├── src/agent.py           #   agent + 3 Moss tools, registered as "agent-py"
-│   ├── src/create_index.py    #   builds the knowledge + memory indexes
-│   ├── knowledge.json         #   RAG seed corpus (~13 LiveKit Q&A entries)
-│   ├── Dockerfile             #   deploy image (CMD: uv run src/agent.py start)
-│   └── .env.local             #   LIVEKIT_* (auto) + MOSS_* (you paste)
-├── frontend/                  # Next.js app (pnpm-managed)
-│   ├── app/api/token/route.ts #   token + dispatch metadata + lk_moss_user cookie
-│   ├── app-config.ts          #   branding + AGENT_NAME wiring
-│   ├── hooks/useMossContextEvents.ts          # parses moss_context data packets
-│   └── components/app/moss-results-panel.tsx  # "Knowledge Matches" UI
-│   └── .env.local             #   LIVEKIT_* + AGENT_NAME=agent-py (no Moss vars)
-└── package.json               # root pnpm orchestrator (scripts below)
-```
+### Cold vs memory modes
 
-## Prerequisites
+Each call is tagged with `memory_mode` in LiveKit dispatch metadata:
 
-- **Python 3.10+** and **[uv](https://docs.astral.sh/uv/)** (manages the agent's venv).
-- **Node.js 22+** and **[pnpm](https://pnpm.io) 10+**.
-- The **[LiveKit CLI](https://docs.livekit.io/reference/developer-tools/livekit-cli/)** (`lk`),
-  authenticated to a LiveKit Cloud project:
-  ```bash
-  lk cloud auth          # opens a browser to link your project
-  lk project list        # verify a linked project exists
-  ```
-- A **[LiveKit Cloud](https://cloud.livekit.io)** account/project.
-- A **[Moss](https://portal.usemoss.dev)** account (free tier is plenty — see below).
+| Mode | Retrieval | Behavior |
+|------|-----------|----------|
+| **`cold`** | Knowledge docs only (Moss `knowledge` index) | No workflow/semantic/episodic — agent follows generic documentation |
+| **`full`** | Full 3-layer cascade | Workflow-first; `avoid_tools` blocks known dead ends |
 
-> **Never hand-write LiveKit keys.** All LiveKit setup goes through `lk`, and whenever you touch
-> LiveKit code or config, look up the current API first (`lk docs` or the LiveKit Docs MCP).
+The benchmark console runs both modes side-by-side on the same scenario so you can see memory change the tool path, cost, and outcome.
 
-## Setup
+---
 
-If you cloned this repo, the two starters and their LiveKit credentials are already in place. If you
-are scaffolding from scratch, the starters are created with the LiveKit CLI:
+## Demo
+
+### Live benchmark console
+
+Open [http://localhost:3000/demo](http://localhost:3000/demo) after starting the stack.
+
+1. Pick a **scenario** (internet dropout, billing dispute, or phone service)
+2. Start a **benchmark run** — this stamps a `run_id` into session metadata
+3. Run **Call 1 (cold)** — say the scenario prompt aloud or type it
+4. Run **Call 2 (memory)** — same prompt, memory cascade active
+5. Review the **comparison** — tool sequences, token estimates, avoided dead ends, event log
+
+### Scenarios and expected divergence
+
+#### Internet dropout
+**Prompt:** *"My internet keeps dropping"*
+
+| | Cold | Memory |
+|---|------|--------|
+| **Path** | Speed test → factory reset | Outage check → line signal → modem reboot |
+| **Outage check** | Skipped | First step (zip 95014 on demo account) |
+| **Factory reset** | Attempted (fails) | Blocked by memory |
+
+#### Billing dispute
+**Prompt:** *"I was overcharged this month"*
+
+| | Cold | Memory |
+|---|------|--------|
+| **Path** | Escalate to tier-2 | Pull billing → apply credit |
+| **Resolution** | Slow handoff | Direct credit on account |
+
+#### Phone service issue
+**Prompt:** *"Calls keep failing"*
+
+| | Cold | Memory |
+|---|------|--------|
+| **Path** | Factory reset router | Reset APN → reboot modem |
+| **Factory reset** | Attempted (fails) | Avoided |
+
+### Landing page
+
+[http://localhost:3000](http://localhost:3000) — product overview, pipeline explainer, integration status, and link to the demo.
+
+---
+
+## Quick start (local, ~5 minutes)
+
+### Prerequisites
+
+- **Node.js** ≥ 22, **pnpm** ≥ 10
+- **Python** 3.10–3.14, **[uv](https://docs.astral.sh/uv/)**
+- **LiveKit Cloud** project ([cloud.livekit.io](https://cloud.livekit.io)) with API key/secret
+- **Moss** project ([moss.dev](https://docs.moss.dev/docs)) with project ID + key
+
+### 1. Clone and install
 
 ```bash
-lk app create --template agent-starter-python --install --yes agent-py
-lk app create --template agent-starter-react  --install --yes frontend
-```
-
-**1. Install dependencies and create `.env.local` files:**
-
-```bash
+git clone <your-repo-url> memorable.build
+cd memorable.build
 pnpm setup
 ```
 
-This installs the frontend (`pnpm`), syncs the agent (`uv sync`), and copies `.env.example` →
-`.env.local` for each app if missing.
+`pnpm setup` runs: root pnpm install → `apps/web` install → `uv sync` → copies env template if missing.
 
-**2. Write LiveKit credentials** into both apps with the CLI (never typed by hand):
+### 2. Configure environment
+
+Create **`apps/web/.env.local`** (and optionally a root **`.env.local`** for the Python worker — both are loaded):
 
 ```bash
-lk app env -w agent-py     # reads agent-py/.env.example → writes agent-py/.env.local
-lk app env -w frontend     # reads frontend/.env.example → writes frontend/.env.local
+cp .env.example .env.local
+cp apps/web/.env.example apps/web/.env.local
+# Edit both files with your keys
 ```
 
-This populates `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` in both files. The
-frontend's `AGENT_NAME` is already set to `agent-py` so the browser explicitly dispatches to this
-agent.
+Minimum required variables:
 
-**3. Paste your Moss credentials — the one manual step.** From the
-[Moss portal](https://portal.usemoss.dev), copy your project ID and key into
-`agent-py/.env.local`:
+```env
+# LiveKit — required for voice demo
+LIVEKIT_URL=wss://<project>.livekit.cloud
+LIVEKIT_API_KEY=<key>
+LIVEKIT_API_SECRET=<secret>
+AGENT_NAME=memorable-agent
 
-```dotenv
-MOSS_PROJECT_ID=your_moss_project_id
-MOSS_PROJECT_KEY=your_moss_project_key
-# defaults below are fine for this starter:
+# Moss — required for memory init and cascade
+MOSS_PROJECT_ID=<id>
+MOSS_PROJECT_KEY=<key>
 MOSS_INDEX_NAME=knowledge
 MOSS_MEMORY_INDEX_NAME=memory
-MOSS_MODEL_ID=moss-minilm
+
+# Worker → web event bridge (default works locally)
+MEMORABLE_EVENTS_URL=http://localhost:3000/api/events/publish
 ```
 
-The **frontend needs no Moss variables** — only the agent talks to Moss.
+Optional:
 
-## Build the Moss indexes
+```env
+# TrueFoundry AI Gateway
+TRUEFOUNDRY_API_KEY=
+TRUEFOUNDRY_ENDPOINT=https://llm-gateway.truefoundry.com/api/inference/openai
+```
+
+> **Note:** `/api/token` currently only mints tokens when `NODE_ENV=development`. For Vercel/preview deploys, remove or gate that check (e.g. behind auth or a `ALLOW_PUBLIC_DEMO` flag) before going live.
+
+### 3. Initialize memory
+
+Seeds ~21 demo traces, indexes the knowledge base, trains the GNN, and exports workflows to Moss:
 
 ```bash
-pnpm moss:index
+pnpm memorable:init
 ```
 
-Runs `agent-py/src/create_index.py`, which creates **both** indexes:
+This is idempotent — safe to re-run.
 
-- **`knowledge`** — populated from `agent-py/knowledge.json` (the RAG corpus).
-- **`memory`** — seeded with one placeholder doc so it exists before the first runtime write.
-
-It prints the document counts / job IDs for each. You can confirm the indexes appear in the
-[Moss portal](https://portal.usemoss.dev). (Requires the Moss credentials from setup.)
-
-## Run
-
-Start the agent and the frontend together:
+### 4. Download LiveKit agent model files (first run only)
 
 ```bash
-pnpm dev
+pnpm worker:download-files
 ```
 
-- Frontend: **http://localhost:3000** — click **Start call**, allow the mic, and talk.
-- The agent connects to LiveKit Cloud and waits for the browser to dispatch it.
-
-No-frontend smoke test (talk to the agent in your terminal):
+### 5. Start web + worker
 
 ```bash
-pnpm agent:py:console
+pnpm dev:all
 ```
 
-## Try it — the three tools
+| Service | URL / process |
+|---------|----------------|
+| Web app | [http://localhost:3000](http://localhost:3000) |
+| Demo | [http://localhost:3000/demo](http://localhost:3000/demo) |
+| LiveKit worker | `memorable-agent` (background process) |
 
-With `pnpm dev` running, connect at http://localhost:3000 and:
+---
 
-1. **RAG / `search_knowledge`** — ask a docs question, e.g.
-   *"How does turn detection work in LiveKit?"*
-   The agent searches the `knowledge` index, answers grounded in the snippets, and the
-   **Knowledge Matches** panel fills in with the retrieved chunks + relevance scores.
-2. **Write memory / `remember_fact`** — say
-   *"Remember that I prefer Cartesia for text-to-speech."*
-   The agent stores the fact tagged with your `user_id`.
-3. **Read memory / `recall_facts`** — ask
-   *"What's my TTS preference?"*
-   The agent recalls *your* facts only (per-user metadata filter) and answers from them.
+## Integrate into your agent
 
-Because the `lk_moss_user` cookie is httpOnly and long-lived, your memory persists across reloads
-and reconnects — the same browser keeps the same `user_id`.
+Five lines to attach Memorable to any LiveKit Python agent:
 
-## Test & lint
+```python
+from memorable import Memorable
+from memorable.livekit import attach
+
+memory = Memorable.from_env()
+await memory.ensure_loaded()
+hook = attach(agent, memory, mode="full")  # or mode="cold"
+```
+
+### Room metadata
+
+The web app stamps dispatch metadata when minting tokens:
+
+```json
+{
+  "user_id": "<uuid>",
+  "memory_mode": "cold" | "full",
+  "scenario_id": "internet_dropout" | "billing_dispute" | "phone_service_issue",
+  "run_id": "<benchmark-run-id>",
+  "model_route": "direct-openai" | "truefoundry-openai" | "truefoundry-minimax"
+}
+```
+
+The worker reads `memory_mode` and `scenario_id` to select the playbook and cascade mode.
+
+### Recording traces after a call
+
+```python
+# On session end — writes L1 trace and updates workflow edges
+hook.finalize(outcome="success")  # or "failure"
+```
+
+Re-run `pnpm memorable:init` (or call `memory.init_all()`) to re-index patterns and retrain the GNN after new traces accumulate.
+
+---
+
+## Project structure
+
+```
+memorable.build/
+├── apps/web/                 Next.js 15 app
+│   ├── app/                  Routes: /, /demo, /api/*
+│   ├── components/
+│   │   ├── demo/             Benchmark console (cold vs memory)
+│   │   └── landing/          Marketing / pipeline page
+│   └── lib/                  Benchmark store, types, utilities
+│
+├── packages/memorable/       Python SDK (pip install -e .)
+│   └── memorable/
+│       ├── client.py         Memorable.from_env(), init_all(), query()
+│       ├── memory/           Cascade, traces, semantic, tools
+│       ├── gnn/              Graph builder + PyG trainer
+│       ├── moss/             Moss client + index setup
+│       └── livekit/          MemoryHook, attach(), briefings
+│
+├── worker/                   LiveKit agent worker
+│   └── agent.py              SupportAgent + tool stubs + event publish
+│
+├── data/
+│   ├── knowledge_base.json   13 ISP support articles (indexed to Moss)
+│   ├── memorable.db          Created by init (SQLite traces)
+│   └── gnn_model.pt          Created by init (GNN weights)
+│
+├── docs/
+│   └── PITCH.md              30-second presenter script
+│
+└── agent-py/                 Legacy v1 reference (env preserved)
+```
+
+---
+
+## Available tools (demo stubs)
+
+The worker implements simulated ISP support tools. Results are deterministic so the benchmark is reproducible.
+
+| Tool | Simulated result |
+|------|------------------|
+| `check_outage_map` | No outages near zip 95014 |
+| `check_line_signal` | Signal weak at −18 dBm |
+| `reboot_modem` | Modem reboot sent |
+| `factory_reset_router` | **Fails** — router does not come back |
+| `run_speed_test` | 45/12 Mbps |
+| `pull_account_billing` | Overcharge confirmed |
+| `apply_bill_credit` | $25 credit applied |
+| `escalate_tier2` | Tier-2 queue (slow) |
+| `reset_apn_settings` | APN profile refreshed |
+
+Backend tools run **before the agent speaks** on the first scenario-triggering turn. The UI sidebar shows each step with outcome (ok / failed) and a short summary.
+
+---
+
+## API reference
+
+### Web — voice & events
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/token` | POST | Mint LiveKit room token + agent dispatch metadata |
+| `/api/events` | GET | SSE stream of worker events (`tool_call`, `memory_injection`, …) |
+| `/api/events/publish` | POST | Worker webhook target for event ingestion |
+| `/api/init` | POST | Run `memorable.client` init (seed + GNN + Moss) |
+| `/api/memory/status` | GET | Layer status, metrics, trace count |
+| `/api/memory/graph?task=` | GET | GNN workflow graph for a task type |
+| `/api/integrations/status` | GET | Which integrations are configured |
+
+### Benchmark
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/benchmark/start` | POST | Create a new benchmark run (`scenario_id`) |
+| `/api/benchmark/reset` | POST | Clear in-memory benchmark history |
+| `/api/benchmark/runs` | GET | List recent runs + aggregate stats |
+| `/api/benchmark/runs/:id` | GET | Full event trace for a run |
+| `/api/benchmark/backup` | POST | Generate a fallback replay run for demos |
+
+### SSE event types
+
+| Event | Payload highlights |
+|-------|-------------------|
+| `session_start` | `session_id`, `mode` |
+| `memory_injection` | `layer`, `layers_active`, `next_action`, `avoid_tools`, `elapsed_ms` |
+| `tool_call` | `tool`, `steps[]`, `outcome`, `summary` |
+| `tool_blocked` | `tool`, `reason` |
+| `session_end` | `steps[]`, final stats |
+
+Events are delivered via **SSE** (`/api/events`) and **LiveKit data channel** (fallback when SSE is blocked).
+
+---
+
+## Deployment
+
+Memorable splits into two deploy targets:
+
+| Part | Where to deploy | Notes |
+|------|-----------------|-------|
+| **Web app** (`apps/web`) | [Vercel](https://vercel.com) | Landing, demo UI, token API, SSE, benchmark |
+| **LiveKit worker** (`worker/`) | LiveKit Cloud agent hosting, Railway, Fly.io, etc. | Must stay running for voice calls |
+
+### Deploy web to Vercel
+
+1. Push this repo to GitHub
+2. Import the project in Vercel
+3. Set **Root Directory** to `apps/web`
+4. Add environment variables (same as `.env.local`)
+5. **Update `/api/token`** — remove or replace the development-only guard so tokens can be minted on the deployed domain (add auth for anything beyond hackathon demos)
+6. Deploy
+
+Build settings (usually auto-detected):
+
+- **Framework:** Next.js
+- **Install:** `pnpm install`
+- **Build:** `pnpm build`
+
+### Point the worker at production
+
+On whatever hosts the worker, set:
+
+```env
+MEMORABLE_EVENTS_URL=https://<your-vercel-domain>/api/events/publish
+LIVEKIT_URL=...
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+MOSS_PROJECT_ID=...
+MOSS_PROJECT_KEY=...
+AGENT_NAME=memorable-agent
+```
+
+Then run:
 
 ```bash
-pnpm test    # pytest (agent-py)
-pnpm lint    # ruff (agent-py) + next lint (frontend)
-pnpm format  # prettier (frontend) + ruff format (agent-py)
+uv --directory worker run agent.py start
 ```
 
-## Deploy
+### What works on Vercel vs locally
 
-The frontend's `/api/token` route is **development-only** (it throws in production) — deploy it
-behind your own auth before shipping. The agent deploys to **LiveKit Cloud** straight from its
-Dockerfile (`agent-py/Dockerfile`).
+| Feature | Local | Vercel |
+|---------|-------|--------|
+| Landing page | ✅ | ✅ |
+| Benchmark UI + SSE | ✅ | ✅ |
+| LiveKit token minting | ✅ | ⚠️ Requires removing dev-only guard in `/api/token` |
+| Voice calls | ✅ (worker local) | ✅ (worker deployed separately) |
+| `/api/init` (Python init) | ✅ | ❌ — run init locally or in CI, commit `data/memorable.db` |
+| `/api/memory/graph` | ✅ | ❌ — no Python runtime on Vercel serverless |
 
-> Commands below reflect the current LiveKit CLI flow — re-check with `lk docs` /
-> `lk agent --help` before deploying, as the CLI evolves.
+For production demos, pre-run `pnpm memorable:init` locally and commit the generated `data/memorable.db` + `data/gnn_model.pt`, or run init in a CI step before deploy.
+
+---
+
+## Development commands
 
 ```bash
-cd agent-py
-lk agent create        # first deploy: registers the agent, writes livekit.toml,
-                       #   uploads the build context, builds the Dockerfile image,
-                       #   and deploys it. Dispatch name "agent-py" is preserved.
+pnpm dev:all          # Web (:3000) + worker concurrently
+pnpm dev:web          # Next.js only
+pnpm dev:worker       # LiveKit agent only
+pnpm build            # Production build (apps/web)
+pnpm memorable:init   # Seed traces, index Moss, train GNN
+pnpm worker:download-files
+pnpm lint             # ESLint (apps/web)
+pnpm test             # pytest (packages/memorable)
 ```
 
-Your agent needs its environment in the cloud too — set `LIVEKIT_*` and `MOSS_PROJECT_ID` /
-`MOSS_PROJECT_KEY` (plus the `MOSS_*` index names) as deployment
-[secrets](https://docs.livekit.io/deploy/agents/secrets/).
-
-Subsequent updates and monitoring:
+### Python SDK directly
 
 ```bash
-lk agent deploy        # ship a new version
-lk agent status        # status / replica count
-lk agent logs          # live log tail
+uv run --directory packages/memorable python -m memorable.client   # init_all()
+uv run --directory packages/memorable pytest
 ```
 
-See [Agent deployment](https://docs.livekit.io/deploy/agents/quickstart/) and
-[Builds & Dockerfiles](https://docs.livekit.io/deploy/agents/builds/) for details.
+### Install SDK in another project
 
-## Customize
+```bash
+pip install -e packages/memorable
+# or
+uv add --path packages/memorable memorable
+```
 
-- **Knowledge base** — edit `agent-py/knowledge.json` (each entry is a self-contained Q&A
-  paragraph with `{id, text, metadata}`), then re-run `pnpm moss:index`.
-- **Agent persona / behavior** — edit the instructions and tools in `agent-py/src/agent.py`.
-- **Models** — swap the LiveKit Inference model strings (STT/LLM/TTS) in `agent-py/src/agent.py`.
-- **Branding & visualizer** — edit `frontend/app-config.ts`.
-- **Knowledge Matches UI** — `frontend/components/app/moss-results-panel.tsx` (rendered from
-  `frontend/components/agents-ui/blocks/agent-session-view-01/components/agent-session-block.tsx`).
+---
 
-## Root scripts
+## Seed data
 
-| Script | What it does |
-| --- | --- |
-| `pnpm setup` | install frontend + sync agent (`uv`) + copy `.env.local` files |
-| `pnpm moss:index` | build the `knowledge` + `memory` Moss indexes |
-| `pnpm dev` | run agent + frontend together (via `concurrently`) |
-| `pnpm agent:py:console` | terminal smoke test (no frontend) |
-| `pnpm agent:py:start` / `pnpm agent:py:download-files` | prod entry / fetch model assets |
-| `pnpm build` / `pnpm start:frontend` | build / serve the frontend |
-| `pnpm test` / `pnpm lint` / `pnpm format` | tests, lint, format |
+`pnpm memorable:init` seeds idempotent demo traces:
 
-## Moss resources
+| Task type | Success traces | Failure traces | Learned pattern |
+|-----------|---------------|----------------|-----------------|
+| `internet_dropout` | 8 | 5 | Outage → signal → reboot; avoid factory reset |
+| `billing_dispute` | 2 | 1 | Pull billing → credit; avoid blind escalation |
+| `phone_service_issue` | 2 | 1 | APN reset → reboot; avoid factory reset |
+| `sim_activation` | 2 | — | activate_sim |
 
-- **LiveKit Integration:** https://docs.moss.dev/docs/integrations/livekit
-- **Portal (get your project ID + key):** https://portal.usemoss.dev
-- **Indexing & retrieval guides:** https://docs.moss.dev/docs
-- **Free tier:** ~**60 voice-minutes/month** and up to **3 indexes** — enough to run this starter
-  end to end (the `knowledge` and `memory` indexes count as 2).
+Knowledge base: **13 articles** in `data/knowledge_base.json` covering internet, billing, phone, SIM, and general ISP support flows.
+
+---
+
+## Troubleshooting
+
+### Voice connects but no tools appear in sidebar
+
+- Confirm the worker is running (`pnpm dev:worker`)
+- Check `MEMORABLE_EVENTS_URL` points to your web app
+- Restart both processes after env changes
+- Say the full scenario prompt (e.g. *"my internet keeps dropping"*)
+
+### Agent speaks but sidebar stays empty
+
+- Hard refresh the demo page
+- Check browser devtools → Network → `/api/events` SSE connection is open
+- Look for `Event publish failed` warnings in worker logs
+
+### `pnpm memorable:init` fails
+
+- Verify `MOSS_PROJECT_ID` and `MOSS_PROJECT_KEY` are set
+- Ensure Moss project has capacity for three indexes: `knowledge`, `memory`, `workflows`
+
+### Worker import errors
+
+```bash
+uv sync
+uv run --directory worker python -c "import agent"
+```
+
+### Token route returns 500 on Vercel
+
+The token route throws outside `NODE_ENV=development`. For deployed demos, update `apps/web/app/api/token/route.ts` to allow production token minting (ideally behind authentication).
+
+### Cold and memory look identical
+
+- Confirm Call 1 metadata has `memory_mode: "cold"` and Call 2 has `"full"` (check network tab on `/api/token` response flow)
+- Re-run `pnpm memorable:init` so Moss workflow indexes are populated
+- Check the benchmark event log for `memory_injection` layer = `workflow` on memory calls
+
+---
+
+## Architecture decisions
+
+- **Moss for retrieval, SQLite for source of truth** — traces live in SQLite; Moss indexes are rebuilt from SQLite on init
+- **GNN exports to Moss workflows** — runtime cascade queries Moss, not the GNN directly, keeping inference fast at call time
+- **Playbooks per scenario** — demo reliability: memory and cold paths are scenario-specific and visibly different
+- **Events dual-published** — SSE + LiveKit data channel so the UI works even when one transport fails
+- **Batch tool execution** — on the first scenario trigger, all playbook steps run before the agent speaks, so judges see the full path immediately
+
+---
+
+## Sponsors & stack
+
+LiveKit · Moss · TrueFoundry · MiniMax · Unsiloed AI
+
+---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+See repository license. Built on the [LiveKit + Moss hackathon starter](https://github.com/livekit-examples/moss-hacker-starter).
+
+---
+
+## Further reading
+
+- [docs/PITCH.md](docs/PITCH.md) — 30-second presenter script
+- [LiveKit Agents docs](https://docs.livekit.io/agents/)
+- [Moss documentation](https://docs.moss.dev/docs)

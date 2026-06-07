@@ -1,18 +1,27 @@
 # Dependencies
 node_modules/
+.venv/
 agent-py/.venv/
 
 # Build output
+apps/web/.next/
+apps/web/out/
 frontend/.next/
 frontend/out/
+
+# Generated data (run `pnpm memorable:init` locally)
+data/memorable.db
+data/gnn_model.pt
+*.db
 
 # Caches
 **/__pycache__/
 *.pyc
-agent-py/.ruff_cache/
-agent-py/.pytest_cache/
+**/.ruff_cache/
+**/.pytest_cache/
+**/.mypy_cache/
 
-# Local env
+# Local env — never commit secrets
 .env
 .env.local
 .env.*.local
@@ -24,3 +33,6 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Vercel
+.vercel
