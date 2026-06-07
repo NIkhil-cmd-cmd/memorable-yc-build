@@ -699,9 +699,9 @@
 
 .flowchart-panel {
   margin-top: 16px;
-  border: 1px dashed var(--mem-border-strong);
+  border: 1px solid rgba(10, 10, 8, 0.16);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.8);
   min-height: 420px;
   position: relative;
   overflow: hidden;
@@ -710,11 +710,11 @@
 .architecture-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 0;
+  gap: 12px;
 }
 
 .architecture-canvas {
-  border-right: 1px dashed rgba(10, 10, 8, 0.14);
+  padding: 8px;
   overflow: hidden;
 }
 
@@ -729,34 +729,34 @@
 }
 
 .focus-ingest .arch-world {
-  transform: translate(52px, 18px) scale(1.14);
+  transform: translate(28px, 12px) scale(1.08);
 }
 
 .focus-signal .arch-world {
-  transform: translate(-20px, 8px) scale(1.14);
+  transform: translate(-10px, 8px) scale(1.08);
 }
 
 .focus-relate .arch-world {
-  transform: translate(-84px, -8px) scale(1.15);
+  transform: translate(-34px, -4px) scale(1.09);
 }
 
 .focus-replay .arch-world {
-  transform: translate(-86px, -36px) scale(1.18);
+  transform: translate(-30px, -16px) scale(1.09);
 }
 
 .arch-box {
-  fill: rgba(255, 255, 255, 0.76);
-  stroke: rgba(10, 10, 8, 0.27);
-  stroke-width: 1.4;
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: rgba(10, 10, 8, 0.2);
+  stroke-width: 1.2;
   transition:
     fill 0.35s ease,
     stroke 0.35s ease;
 }
 
 .arch-subbox {
-  fill: rgba(255, 255, 255, 0.72);
-  stroke: rgba(10, 10, 8, 0.24);
-  stroke-width: 1.1;
+  fill: rgba(255, 255, 255, 0.88);
+  stroke: rgba(10, 10, 8, 0.18);
+  stroke-width: 1;
   transition:
     fill 0.35s ease,
     stroke 0.35s ease;
@@ -770,8 +770,8 @@
 
 .arch-link {
   fill: none;
-  stroke: rgba(10, 10, 8, 0.28);
-  stroke-width: 1.5;
+  stroke: rgba(10, 10, 8, 0.24);
+  stroke-width: 1.35;
   stroke-linecap: round;
   stroke-linejoin: round;
   transition:
@@ -780,8 +780,8 @@
 }
 
 .arch-link.is-focus {
-  stroke: rgba(45, 94, 168, 0.88);
-  stroke-width: 2;
+  stroke: rgba(45, 94, 168, 0.84);
+  stroke-width: 1.9;
 }
 
 .arch-link-highlight {
@@ -796,16 +796,7 @@
 
 .arch-link-highlight.is-focus {
   stroke: rgba(45, 94, 168, 0.86);
-  stroke-width: 2.6;
-}
-
-.arch-travel-dot {
-  fill: rgba(45, 94, 168, 0.25);
-  transition: fill 0.35s ease;
-}
-
-.arch-travel-dot.is-focus {
-  fill: rgba(45, 94, 168, 0.92);
+  stroke-width: 2.2;
 }
 
 .arch-title {
@@ -822,10 +813,11 @@
 }
 
 .architecture-explain {
-  padding: 16px 14px;
+  padding: 16px 14px 16px 2px;
   display: grid;
   align-content: start;
   gap: 10px;
+  border-left: 1px dashed rgba(10, 10, 8, 0.12);
 }
 
 .architecture-copy {

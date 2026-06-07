@@ -1,28 +1,78 @@
 # Memorable
 
-**Self-adapting memory for flight rebooking voice agents.**
+**Memorable is a shared memory network for enterprise agents.**
 
-Memorable gives LiveKit agents institutional memory so they stop repeating dead-end booking steps and replay what already worked.
+It captures successful traces, learns reusable workflows, and replays higher-quality paths on future runs.
 
 Built for the **YC Conversational AI Hackathon 2026**.
 
-![Memorable demo](apps/web/public/demo.gif)
+## What the demo proves
 
-## What judges see in the demo
+The `/demo` page runs the same flight-rebooking scenario in two modes:
 
-Same prompt, two runs:
+- **Cold Session Agent A**: no shared memory, explores more branches and dead ends.
+- **Memorable Session Agent B**: reuses memory (Moss retrieval + workflow replay) to avoid dead ends.
 
-- **Cold run**: `search_basic_fares -> choose_late_connection -> retry_booking_failed_fare_class -> escalate_manual_ticketing`
-- **Memory run**: `check_waiver_status -> search_partner_flights -> apply_same_day_policy -> auto_rebook_and_issue_voucher`
+The result is shown with side-by-side traces, deltas, and a shared workflow graph.
 
-This is shown side-by-side in `/demo` with trace logs, tool path divergence, and summary metrics.
+## Website walkthrough (in order)
 
-## Sponsor stack used
+### 1) Hero
 
-- **LiveKit**: realtime voice transport, token minting, agent dispatch metadata.
-- **Moss**: retrieval + embeddings across `knowledge`, `memory`, and `workflows` indexes.
-- **TrueFoundry**: model routing gateway.
-- **MiniMax**: primary model route via `truefoundry-minimax`.
+Product identity, thesis, and entry CTA.
+
+![Hero](docs/screenshots/01-hero.png)
+
+### 2) Problem
+
+Why agents waste tokens, time, and money without shared memory.
+
+![Problem](docs/screenshots/02-problem.png)
+
+### 3) Solution
+
+Shared memory layer for enterprise agents with visual propagation.
+
+![Solution](docs/screenshots/03-solution.png)
+
+### 4) How It Works
+
+Pipeline from task embedding to KNN/K-means routing, Moss 3-layer retrieval, and shared GNN replay.
+
+![How It Works](docs/screenshots/04-how-it-works.png)
+
+### 5) Memory Formation
+
+End-to-end flow from prompt/tool execution to trace/workflow/memory graph.
+
+![Memory Formation](docs/screenshots/05-memory-formation.png)
+
+### 6) Developer Experience
+
+Build path for engineers with SDK/API and terminal-driven setup flow.
+
+![Developer Experience](docs/screenshots/06-developer-experience.png)
+
+## Demo walkthrough
+
+### 7) Shared Workflow Graph
+
+Single state-space graph showing explored dead ends vs selected memory path.
+
+![Shared Workflow Graph](docs/screenshots/07-demo-graph.png)
+
+### 8) Side-by-side run comparison
+
+Top-line savings and direct cold-vs-memory trace comparison.
+
+![Demo Comparison](docs/screenshots/08-demo-comparison.png)
+
+## Sponsor stack
+
+- **LiveKit**: voice/RTC runtime and session context.
+- **Moss**: memory retrieval and embedding-backed indexes.
+- **TrueFoundry**: model routing layer.
+- **MiniMax**: routed inference model option.
 
 ## 3-command quick start
 
@@ -32,21 +82,19 @@ pnpm memorable:init
 pnpm dev:all
 ```
 
-Then open:
+Open:
 
 - `http://localhost:3000` (landing)
 - `http://localhost:3000/demo` (benchmark)
 
 ## Environment
 
-Copy and fill:
-
 ```bash
 cp .env.example .env.local
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Minimum required:
+Required variables:
 
 ```env
 LIVEKIT_URL=
@@ -61,19 +109,18 @@ MOSS_MEMORY_INDEX_NAME=memory
 
 MEMORABLE_EVENTS_URL=http://localhost:3000/api/events/publish
 
-# For routed MiniMax in demo
 TRUEFOUNDRY_ENDPOINT=
 TRUEFOUNDRY_API_KEY=
 TRUEFOUNDRY_MINIMAX_MODEL=MiniMax-Text-01
 ```
 
-For hosted hackathon demos (without full auth), allow token route explicitly:
+Optional for public demo token route:
 
 ```env
 ALLOW_PUBLIC_DEMO=true
 ```
 
-## Integration (5 lines)
+## Minimal integration
 
 ```python
 from memorable import Memorable
@@ -81,31 +128,20 @@ from memorable.livekit import attach
 
 memory = Memorable.from_env()
 await memory.ensure_loaded()
-hook = attach(agent, memory, mode="full")
+attach(agent, memory, mode="full")
 ```
 
-## Project layout
+## Repo layout
 
-- `apps/web`: Next.js landing + benchmark + APIs.
-- `worker/agent.py`: LiveKit agent runtime and tool execution.
-- `packages/memorable`: Python memory SDK (traces, semantic patterns, GNN workflow export).
-- `data/knowledge_base.json`: flight disruption knowledge docs indexed to Moss.
+- `apps/web`: Next.js landing, demo UI, and API routes.
+- `worker/agent.py`: LiveKit agent runtime + tool execution.
+- `packages/memorable`: Python SDK (trace ingestion, retrieval, workflow replay).
+- `data/knowledge_base.json`: domain knowledge used by retrieval.
 
 ## Key APIs
 
-- `POST /api/token`: LiveKit token + dispatch metadata (`memory_mode`, `scenario_id`, `model_route`).
-- `POST /api/benchmark/start`: start a benchmark run.
-- `POST /api/benchmark/backup`: generate replay fallback run.
-- `GET /api/events`: SSE trace stream.
-- `GET /api/integrations/status`: integration readiness.
-
-## Dev commands
-
-```bash
-pnpm dev:all
-pnpm dev:web
-pnpm dev:worker
-pnpm build
-pnpm memorable:init
-pnpm worker:download-files
-```
+- `POST /api/token`
+- `POST /api/benchmark/start`
+- `POST /api/benchmark/backup`
+- `GET /api/events`
+- `GET /api/integrations/status`

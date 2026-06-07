@@ -341,12 +341,6 @@ function FlowchartScenes({ active }: { active: string }) {
               d="M312 304C430 352 538 352 650 328"
               className={`arch-link-highlight ${replayFocus}`}
             />
-
-            <circle r="5.5" className={`arch-travel-dot ${replayFocus}`}>
-              <animateMotion dur="2.8s" repeatCount="indefinite">
-                <mpath href="#arch-replay-path" />
-              </animateMotion>
-            </circle>
           </g>
         </svg>
       </div>
