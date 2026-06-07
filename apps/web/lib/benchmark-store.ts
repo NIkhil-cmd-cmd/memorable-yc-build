@@ -183,16 +183,20 @@ export function ingestBenchmarkEvent(event: BenchmarkEvent) {
 const BACKUP_SCENARIOS: Record<BenchmarkScenario, { cold: string[]; memory: string[] }> = {
   internet_dropout: {
     cold: [
-      'run_speed_test',
-      'check_wifi_channel',
-      'check_dns_resolver',
-      'power_cycle_router',
-      'factory_reset_router',
-      'reprovision_router',
-      'reconnect_all_devices',
-      'escalate_field_tech',
+      'ask_departure_time_again',
+      'ask_budget_again',
+      'search_basic_fares',
+      'choose_late_connection',
+      'retry_booking_failed_fare_class',
+      'retry_booking_failed_fare_class',
+      'escalate_manual_ticketing',
     ],
-    memory: ['check_outage_map', 'check_line_signal', 'reboot_modem'],
+    memory: [
+      'check_waiver_status',
+      'search_partner_flights',
+      'apply_same_day_policy',
+      'auto_rebook_and_issue_voucher',
+    ],
   },
   billing_dispute: {
     cold: [

@@ -19,15 +19,15 @@ import type {
 
 const SCENARIOS: Record<BenchmarkScenario, { label: string; prompt: string }> = {
   internet_dropout: {
-    label: 'Internet Dropout',
-    prompt: 'My internet keeps dropping every hour.',
+    label: 'Flight Rebooking During Delay',
+    prompt: 'My flight got canceled, I need to get to SF tonight.',
   },
   billing_dispute: {
-    label: 'Billing Dispute',
+    label: 'Billing Dispute (alt)',
     prompt: 'I was overcharged this month and need this fixed today.',
   },
   phone_service_issue: {
-    label: 'Phone Service Issue',
+    label: 'Phone Service Issue (alt)',
     prompt: 'My phone shows bars but calls keep failing.',
   },
 };
@@ -872,6 +872,12 @@ export function DemoLayout() {
                 First behavior split happened at step {divergence.index + 1}:{' '}
                 <strong>{humanizeToolName(divergence.cold ?? 'none')}</strong> vs{' '}
                 <strong>{humanizeToolName(divergence.memory ?? 'none')}</strong>.
+              </p>
+            )}
+            {coldComplete && displayedRun?.memory?.status === 'complete' && (
+              <p className="mem-diff-summary">
+                Win moment: memory avoids dead-end fare class retries and resolves rebooking in one
+                pass.
               </p>
             )}
             <div className="mem-diff-pills">
