@@ -192,7 +192,13 @@ const BACKUP_SCENARIO = {
     'search_partner_flights',
     'choose_late_connection',
     'retry_booking_failed_fare_class',
+    'price_recheck_restricted_fare',
+    'search_partner_flights',
     'escalate_manual_ticketing',
+    'search_basic_fares',
+    'search_partner_flights',
+    'apply_same_day_policy',
+    'auto_rebook_and_issue_voucher',
   ],
   memory: [
     'check_waiver_status',
