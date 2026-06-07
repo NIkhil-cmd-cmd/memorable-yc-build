@@ -20,6 +20,7 @@ data/gnn_model.pt
 **/.ruff_cache/
 **/.pytest_cache/
 **/.mypy_cache/
+**/*.egg-info/
 
 # Local env — never commit secrets
 .env
