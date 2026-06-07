@@ -187,13 +187,16 @@ export function ingestBenchmarkEvent(event: BenchmarkEvent) {
 
 const BACKUP_SCENARIO = {
   cold: [
+    'check_waiver_status',
     'search_basic_fares',
+    'search_partner_flights',
     'choose_late_connection',
     'retry_booking_failed_fare_class',
     'escalate_manual_ticketing',
   ],
   memory: [
     'check_waiver_status',
+    'search_basic_fares',
     'search_partner_flights',
     'apply_same_day_policy',
     'auto_rebook_and_issue_voucher',

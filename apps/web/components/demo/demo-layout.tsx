@@ -34,14 +34,14 @@ const SCENARIOS: Record<
     label: 'Flight Rebooking During Delay',
     prompt: 'My flight got canceled, I need to get to SF tonight.',
     coldPrompt: 'My flight got canceled, I need to get to SF tonight.',
-    memoryPrompt:
-      'My flight was canceled and I still need to reach San Francisco tonight. Rebook me on the fastest valid route.',
+    memoryPrompt: 'Rebook my flight to San Jose tonight.',
   },
 };
 
 const MEMORY_TOOL_ALLOWLIST: Record<BenchmarkScenario, string[]> = {
   flight_rebooking: [
     'check_waiver_status',
+    'search_basic_fares',
     'search_partner_flights',
     'apply_same_day_policy',
     'auto_rebook_and_issue_voucher',
@@ -222,9 +222,29 @@ function WorkflowGraph({
 }) {
   const viewW = 1180;
   const viewH = 520;
-  const edgeId = (source: string, target: string) => `${source}->${target}`;
+  const edgeId = (source: string, target: string, tool: string) => `${source}->${target}::${tool}`;
 
-  type GraphNode = {
+  const stateForTool: Record<string, string> = {
+    ask_departure_time_again: 'trip constraints',
+    ask_budget_again: 'fare constraints',
+    search_basic_fares: 'fare candidate set',
+    choose_late_connection: 'suboptimal route branch',
+    retry_booking_failed_fare_class: 'restricted fare dead-end',
+    price_recheck_restricted_fare: 'fare rules conflict',
+    check_waiver_status: 'waiver eligibility',
+    search_partner_flights: 'partner inventory candidates',
+    apply_same_day_policy: 'policy-adjusted itinerary',
+    auto_rebook_and_issue_voucher: 'rebook confirmed',
+    pull_account_billing: 'billing account context',
+    detect_duplicate_charge: 'duplicate charge candidate',
+    apply_bill_credit: 'credit applied',
+    check_outage_map: 'regional outage state',
+    reset_apn_settings: 'network config reset',
+    reboot_modem: 'connection restored',
+    escalate_manual_ticketing: 'manual operations queue',
+  };
+
+  type StateNode = {
     id: string;
     label: string;
     visitCount: number;
@@ -235,20 +255,21 @@ function WorkflowGraph({
     degree: number;
   };
 
-  type GraphEdge = {
+  type ToolEdge = {
     id: string;
     source: string;
     target: string;
+    tool: string;
     frequency: number;
     selectedByMemory: boolean;
     coldSeen: boolean;
     memorySeen: boolean;
     deadEnd: boolean;
-    orderCold: number | null;
-    orderMemory: number | null;
+    coldOrders: number[];
+    memoryOrders: number[];
   };
 
-  type SimNode = GraphNode &
+  type SimNode = StateNode &
     SimulationNodeDatum & {
       radius: number;
       fx?: number;
@@ -268,54 +289,76 @@ function WorkflowGraph({
     phase === 'done' ? memorySteps.length - 1 : phase === 'memory' ? memoryCurrentIndex : -1;
 
   const { nodes, edges } = useMemo(() => {
-    const deadEndNodeSet = new Set(
-      coldCalls.filter((call) => call.outcome === 'failure').map((call) => call.tool)
-    );
-    const deadEndEdgeSet = new Set(
-      coldCalls
-        .map((call, idx) => (idx > 0 ? edgeId(coldSteps[idx - 1] ?? '', call.tool) : ''))
-        .filter((id) => id && deadEndNodeSet.has(id.split('->')[1] ?? ''))
-    );
-
-    const visits = new Map<string, number>();
-    [...coldSteps, ...memorySteps].forEach((tool) => {
-      visits.set(tool, (visits.get(tool) ?? 0) + 1);
+    const failedByColdOrder = new Set<number>();
+    coldCalls.forEach((call, idx) => {
+      if (call.outcome === 'failure') failedByColdOrder.add(idx);
     });
-    const coldSet = new Set(coldSteps);
-    const memorySet = new Set(memorySteps);
-
-    const memoryRank = new Map<string, number>();
+    const memoryRankByTool = new Map<string, number>();
     memorySteps.forEach((tool, idx) => {
-      const score = 1 - (idx / Math.max(memorySteps.length, 1)) * 0.35;
-      memoryRank.set(tool, Math.max(memoryRank.get(tool) ?? 0, score));
+      const score = 1 - (idx / Math.max(memorySteps.length, 1)) * 0.42;
+      memoryRankByTool.set(tool, Math.max(memoryRankByTool.get(tool) ?? 0, score));
     });
 
-    const edgeMap = new Map<string, GraphEdge>();
-    const addEdge = (source: string, target: string, mode: 'cold' | 'memory', order: number) => {
-      const id = edgeId(source, target);
+    const nodeVisits = new Map<string, number>();
+    const coldNodeSet = new Set<string>();
+    const memoryNodeSet = new Set<string>();
+    const deadEndNodeSet = new Set<string>();
+    const edgeMap = new Map<string, ToolEdge>();
+
+    const stateId = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+    const addTransition = (
+      fromLabel: string,
+      toLabel: string,
+      tool: string,
+      mode: 'cold' | 'memory',
+      order: number,
+      isDeadEnd: boolean
+    ) => {
+      const from = stateId(fromLabel);
+      const to = stateId(toLabel);
+      const id = edgeId(from, to, tool);
       const prev = edgeMap.get(id);
       edgeMap.set(id, {
         id,
-        source,
-        target,
+        source: from,
+        target: to,
+        tool,
         frequency: (prev?.frequency ?? 0) + 1,
         selectedByMemory: (prev?.selectedByMemory ?? false) || mode === 'memory',
         coldSeen: (prev?.coldSeen ?? false) || mode === 'cold',
         memorySeen: (prev?.memorySeen ?? false) || mode === 'memory',
-        deadEnd: (prev?.deadEnd ?? false) || deadEndEdgeSet.has(id),
-        orderCold: mode === 'cold' ? order : (prev?.orderCold ?? null),
-        orderMemory: mode === 'memory' ? order : (prev?.orderMemory ?? null),
+        deadEnd: (prev?.deadEnd ?? false) || isDeadEnd,
+        coldOrders:
+          mode === 'cold' ? [...(prev?.coldOrders ?? []), order] : (prev?.coldOrders ?? []),
+        memoryOrders:
+          mode === 'memory' ? [...(prev?.memoryOrders ?? []), order] : (prev?.memoryOrders ?? []),
       });
+      nodeVisits.set(from, (nodeVisits.get(from) ?? 0) + 1);
+      nodeVisits.set(to, (nodeVisits.get(to) ?? 0) + 1);
+      if (mode === 'cold') {
+        coldNodeSet.add(from);
+        coldNodeSet.add(to);
+      } else {
+        memoryNodeSet.add(from);
+        memoryNodeSet.add(to);
+      }
+      if (isDeadEnd) deadEndNodeSet.add(to);
     };
 
-    coldSteps.forEach((tool, idx) => {
-      if (idx === 0) return;
-      addEdge(coldSteps[idx - 1], tool, 'cold', idx - 1);
-    });
-    memorySteps.forEach((tool, idx) => {
-      if (idx === 0) return;
-      addEdge(memorySteps[idx - 1], tool, 'memory', idx - 1);
-    });
+    const buildPath = (steps: string[], mode: 'cold' | 'memory') => {
+      let currentState = 'incoming request';
+      for (let i = 0; i < steps.length; i += 1) {
+        const tool = steps[i];
+        const nextState = stateForTool[tool] ?? humanizeToolName(tool);
+        const deadEnd = mode === 'cold' ? failedByColdOrder.has(i) : false;
+        addTransition(currentState, nextState, tool, mode, i, deadEnd);
+        currentState = nextState;
+      }
+    };
+
+    buildPath(coldSteps, 'cold');
+    buildPath(memorySteps, 'memory');
 
     const degree = new Map<string, number>();
     edgeMap.forEach((edge) => {
@@ -323,21 +366,29 @@ function WorkflowGraph({
       degree.set(edge.target, (degree.get(edge.target) ?? 0) + edge.frequency);
     });
 
-    const builtNodes: GraphNode[] = Array.from(visits.keys()).map((id) => ({
+    const nodeLabels = new Map<string, string>();
+    edgeMap.forEach((edge) => {
+      nodeLabels.set(edge.source, edge.source.replace(/_/g, ' '));
+      nodeLabels.set(edge.target, edge.target.replace(/_/g, ' '));
+    });
+
+    const builtNodes: StateNode[] = Array.from(nodeLabels.entries()).map(([id, fallback]) => ({
       id,
-      label: humanizeToolName(id),
-      visitCount: visits.get(id) ?? 0,
-      replayScore: memoryRank.get(id) ?? 0.25,
-      coldVisited: coldSet.has(id),
-      memoryVisited: memorySet.has(id),
+      label: fallback,
+      visitCount: nodeVisits.get(id) ?? 1,
+      replayScore: Math.max(
+        0.2,
+        ...Array.from(edgeMap.values())
+          .filter((edge) => edge.source === id || edge.target === id)
+          .map((edge) => memoryRankByTool.get(edge.tool) ?? 0.2)
+      ),
+      coldVisited: coldNodeSet.has(id),
+      memoryVisited: memoryNodeSet.has(id),
       deadEnd: deadEndNodeSet.has(id),
       degree: degree.get(id) ?? 1,
     }));
 
-    return {
-      nodes: builtNodes,
-      edges: Array.from(edgeMap.values()),
-    };
+    return { nodes: builtNodes, edges: Array.from(edgeMap.values()) };
   }, [coldCalls, coldSteps, memorySteps]);
 
   const positionedNodes = useMemo(() => {
@@ -367,7 +418,7 @@ function WorkflowGraph({
     const simLinks: SimLink[] = edges.map((edge) => ({
       source: edge.source,
       target: edge.target,
-      strength: edge.memorySeen ? 0.18 : 0.11,
+      strength: edge.memorySeen ? 0.24 : edge.coldSeen ? 0.15 : 0.1,
     }));
 
     const simulation = forceSimulation(simNodes)
@@ -404,18 +455,27 @@ function WorkflowGraph({
   );
 
   const memoryPathD = useMemo(() => {
-    const points = memorySteps
-      .map((step) => nodeMap.get(step))
-      .filter((point): point is (typeof positionedNodes)[number] => Boolean(point));
-    return points.map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-  }, [memorySteps, nodeMap]);
+    const ordered = edges
+      .filter((edge) => edge.memoryOrders.length > 0)
+      .sort((a, b) => Math.min(...a.memoryOrders) - Math.min(...b.memoryOrders));
+    const points: { x: number; y: number }[] = [];
+    ordered.forEach((edge) => {
+      const source = nodeMap.get(edge.source);
+      const target = nodeMap.get(edge.target);
+      if (!source || !target) return;
+      if (points.length === 0) points.push({ x: source.x, y: source.y });
+      points.push({ x: target.x, y: target.y });
+    });
+    return points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  }, [edges, nodeMap]);
 
   return (
     <section className="mem-panel mem-workflow-graph">
       <div className="mem-graph-head">
         <p className="mem-section-label">Shared Workflow Graph</p>
         <p className="mem-graph-note">
-          One state space. Cold run explores branches; memory run replays ranked transitions.
+          Nodes are agent states. Edges are tool executions. Memory reweights traversal in the same
+          graph.
         </p>
         <p className="mem-graph-legend">
           <span className="neutral">gray: unvisited</span> ·{' '}
@@ -442,46 +502,64 @@ function WorkflowGraph({
           const target = nodeMap.get(edge.target);
           if (!source || !target) return null;
           const coldVisible =
-            edge.orderCold !== null && coldProgress >= 0 && edge.orderCold <= coldProgress;
+            edge.coldOrders.length > 0 &&
+            coldProgress >= 0 &&
+            Math.min(...edge.coldOrders) <= coldProgress;
           const memoryVisible =
-            edge.orderMemory !== null && memoryProgress >= 0 && edge.orderMemory <= memoryProgress;
+            edge.memoryOrders.length > 0 &&
+            memoryProgress >= 0 &&
+            Math.min(...edge.memoryOrders) <= memoryProgress;
           const visible = coldVisible || memoryVisible;
           const isDivergenceEdge =
-            divergenceIndex !== null &&
-            edge.orderCold !== null &&
-            edge.orderCold >= divergenceIndex;
+            divergenceIndex !== null && edge.coldOrders.some((i) => i >= divergenceIndex);
+          const midX = (source.x + target.x) / 2;
+          const midY = (source.y + target.y) / 2;
+          const edgeLabel = `${humanizeToolName(edge.tool)}()${edge.deadEnd ? ' ✕' : ''}`;
           return (
-            <line
-              key={edge.id}
-              x1={source.x}
-              y1={source.y}
-              x2={target.x}
-              y2={target.y}
-              className={`mem-graph-edge ${
-                edge.deadEnd
-                  ? 'is-dead-end'
-                  : edge.selectedByMemory
-                    ? 'is-memory'
-                    : edge.coldSeen
-                      ? 'is-cold'
-                      : 'is-neutral'
-              } ${memoryVisible ? 'is-replay-live' : ''} ${isDivergenceEdge ? 'is-divergence' : ''} ${
-                visible ? 'is-visible' : ''
-              }`}
-              style={{
-                strokeWidth: 1.2 + Math.min(4.2, edge.frequency * 1.1),
-                opacity: visible ? undefined : 0.16,
-              }}
-            />
+            <g key={edge.id}>
+              <line
+                x1={source.x}
+                y1={source.y}
+                x2={target.x}
+                y2={target.y}
+                className={`mem-graph-edge ${
+                  edge.deadEnd
+                    ? 'is-dead-end'
+                    : edge.selectedByMemory
+                      ? 'is-memory'
+                      : edge.coldSeen
+                        ? 'is-cold'
+                        : 'is-neutral'
+                } ${memoryVisible ? 'is-replay-live' : ''} ${isDivergenceEdge ? 'is-divergence' : ''} ${
+                  visible ? 'is-visible' : ''
+                }`}
+                style={{
+                  strokeWidth: 1.2 + Math.min(4.2, edge.frequency * 1.1),
+                  opacity: visible ? undefined : 0.14,
+                }}
+              />
+              <text
+                className={`mem-graph-edge-label ${edge.deadEnd ? 'is-dead-end' : ''} ${memoryVisible ? 'is-memory' : ''}`}
+                x={midX}
+                y={midY - 5}
+                textAnchor="middle"
+                style={{ opacity: visible ? 0.95 : 0.28 }}
+              >
+                {edgeLabel}
+              </text>
+            </g>
           );
         })}
 
         {positionedNodes.map((node) => {
-          const coldSeen = coldSteps.includes(node.id);
-          const memorySeen = memorySteps.includes(node.id);
-          const activeCold = coldCurrentTool === node.id && phase === 'cold';
+          const coldSeen = node.coldVisited;
+          const memorySeen = node.memoryVisited;
+          const activeCold =
+            phase === 'cold' &&
+            edges.some((e) => e.tool === coldCurrentTool && e.target === node.id);
           const activeMemory =
-            memoryCurrentTool === node.id && (phase === 'memory' || phase === 'done');
+            (phase === 'memory' || phase === 'done') &&
+            edges.some((e) => e.tool === memoryCurrentTool && e.target === node.id);
           const replayGlow = memorySeen ? 0.3 + node.replayScore * 0.7 : 0;
           return (
             <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
@@ -719,25 +797,18 @@ function SessionPanel({
         </div>
 
         <div className="mem-panel-muted mem-tools">
-          <p className="mem-section-label">Tool Path</p>
+          <p className="mem-section-label">Tool Trace Overlay</p>
           <p className="mem-tool-current">
             Current action: {currentTool ? humanizeToolName(currentTool) : 'waiting...'}
           </p>
-          {tools.length === 0 ? (
-            <p className="mem-tools-empty">No tools executed yet.</p>
+          {toolRows.length === 0 ? (
+            <p className="mem-tools-empty">No tool transitions yet.</p>
           ) : (
-            <ol>
-              {toolRows.map(({ tool, outcome }, idx) => (
-                <li key={`${tool}-${idx}`}>
-                  {idx + 1}. {humanizeToolName(tool)}{' '}
-                  {outcome === 'failure' ? (
-                    <span className="mem-tool-outcome dead-end">dead-end</span>
-                  ) : (
-                    <span className="mem-tool-outcome correct">correct</span>
-                  )}
-                </li>
-              ))}
-            </ol>
+            <p className="mem-tools-empty">
+              {toolRows.length} tool calls mapped to graph edges below.{' '}
+              {toolRows.filter((row) => row.outcome === 'failure').length} dead-end edge
+              {toolRows.filter((row) => row.outcome === 'failure').length === 1 ? '' : 's'}.
+            </p>
           )}
           {mode === 'full' && unexpectedMemoryCalls.length > 0 && (
             <p className="mem-tools-empty" style={{ color: '#8f3b2f' }}>
