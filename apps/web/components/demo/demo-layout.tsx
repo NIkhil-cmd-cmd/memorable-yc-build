@@ -57,6 +57,26 @@ const MOSS_REFERENCE_LABELS: Record<BenchmarkScenario, string[]> = {
   ],
 };
 
+const STATE_FOR_TOOL: Record<string, string> = {
+  ask_departure_time_again: 'trip constraints',
+  ask_budget_again: 'fare constraints',
+  search_basic_fares: 'fare candidate set',
+  choose_late_connection: 'suboptimal route branch',
+  retry_booking_failed_fare_class: 'restricted fare dead-end',
+  price_recheck_restricted_fare: 'fare rules conflict',
+  check_waiver_status: 'waiver eligibility',
+  search_partner_flights: 'partner inventory candidates',
+  apply_same_day_policy: 'policy-adjusted itinerary',
+  auto_rebook_and_issue_voucher: 'rebook confirmed',
+  pull_account_billing: 'billing account context',
+  detect_duplicate_charge: 'duplicate charge candidate',
+  apply_bill_credit: 'credit applied',
+  check_outage_map: 'regional outage state',
+  reset_apn_settings: 'network config reset',
+  reboot_modem: 'connection restored',
+  escalate_manual_ticketing: 'manual operations queue',
+};
+
 type IntegrationStatus = {
   integrations: {
     truefoundry: {
@@ -220,29 +240,9 @@ function WorkflowGraph({
   coldCurrentTool: string | null;
   memoryCurrentTool: string | null;
 }) {
-  const viewW = 1180;
-  const viewH = 520;
+  const viewW = 1320;
+  const viewH = 660;
   const edgeId = (source: string, target: string, tool: string) => `${source}->${target}::${tool}`;
-
-  const stateForTool: Record<string, string> = {
-    ask_departure_time_again: 'trip constraints',
-    ask_budget_again: 'fare constraints',
-    search_basic_fares: 'fare candidate set',
-    choose_late_connection: 'suboptimal route branch',
-    retry_booking_failed_fare_class: 'restricted fare dead-end',
-    price_recheck_restricted_fare: 'fare rules conflict',
-    check_waiver_status: 'waiver eligibility',
-    search_partner_flights: 'partner inventory candidates',
-    apply_same_day_policy: 'policy-adjusted itinerary',
-    auto_rebook_and_issue_voucher: 'rebook confirmed',
-    pull_account_billing: 'billing account context',
-    detect_duplicate_charge: 'duplicate charge candidate',
-    apply_bill_credit: 'credit applied',
-    check_outage_map: 'regional outage state',
-    reset_apn_settings: 'network config reset',
-    reboot_modem: 'connection restored',
-    escalate_manual_ticketing: 'manual operations queue',
-  };
 
   type StateNode = {
     id: string;
@@ -350,7 +350,7 @@ function WorkflowGraph({
       let currentState = 'incoming request';
       for (let i = 0; i < steps.length; i += 1) {
         const tool = steps[i];
-        const nextState = stateForTool[tool] ?? humanizeToolName(tool);
+        const nextState = STATE_FOR_TOOL[tool] ?? humanizeToolName(tool);
         const deadEnd = mode === 'cold' ? failedByColdOrder.has(i) : false;
         addTransition(currentState, nextState, tool, mode, i, deadEnd);
         currentState = nextState;
@@ -426,15 +426,15 @@ function WorkflowGraph({
         'link',
         forceLink<SimNode, SimLink>(simLinks)
           .id((n) => n.id)
-          .distance((link) => (link.strength > 0.15 ? 120 : 170))
+          .distance((link) => (link.strength > 0.2 ? 190 : 240))
           .strength((link) => link.strength)
       )
-      .force('charge', forceManyBody().strength(-380))
+      .force('charge', forceManyBody().strength(-780))
       .force('center', forceCenter(viewW / 2, viewH / 2))
       .force(
         'collide',
         forceCollide<SimNode>()
-          .radius((n) => n.radius + 16)
+          .radius((n) => n.radius + 30)
           .strength(0.98)
       )
       .stop();
@@ -444,8 +444,8 @@ function WorkflowGraph({
 
     return simNodes.map((node) => ({
       ...node,
-      x: Math.max(70, Math.min(viewW - 70, Number(node.x ?? viewW / 2))),
-      y: Math.max(80, Math.min(viewH - 60, Number(node.y ?? viewH / 2))),
+      x: Math.max(92, Math.min(viewW - 92, Number(node.x ?? viewW / 2))),
+      y: Math.max(110, Math.min(viewH - 90, Number(node.y ?? viewH / 2))),
     }));
   }, [edges, nodes]);
 
@@ -515,6 +515,7 @@ function WorkflowGraph({
           const midX = (source.x + target.x) / 2;
           const midY = (source.y + target.y) / 2;
           const edgeLabel = `${humanizeToolName(edge.tool)}()${edge.deadEnd ? ' ✕' : ''}`;
+          const showEdgeLabel = visible && (edge.deadEnd || edge.memorySeen);
           return (
             <g key={edge.id}>
               <line
@@ -538,15 +539,16 @@ function WorkflowGraph({
                   opacity: visible ? undefined : 0.14,
                 }}
               />
-              <text
-                className={`mem-graph-edge-label ${edge.deadEnd ? 'is-dead-end' : ''} ${memoryVisible ? 'is-memory' : ''}`}
-                x={midX}
-                y={midY - 5}
-                textAnchor="middle"
-                style={{ opacity: visible ? 0.95 : 0.28 }}
-              >
-                {edgeLabel}
-              </text>
+              {showEdgeLabel && (
+                <text
+                  className={`mem-graph-edge-label ${edge.deadEnd ? 'is-dead-end' : ''} ${memoryVisible ? 'is-memory' : ''}`}
+                  x={midX}
+                  y={midY - 8}
+                  textAnchor="middle"
+                >
+                  {edgeLabel}
+                </text>
+              )}
             </g>
           );
         })}
@@ -585,7 +587,7 @@ function WorkflowGraph({
                 style={{ strokeWidth: 1.3 + node.replayScore * 2.4 }}
               />
               <text className="mem-graph-label" textAnchor="middle" y={4}>
-                {node.label.length > 18 ? `${node.label.slice(0, 16)}..` : node.label}
+                {node.label.length > 14 ? `${node.label.slice(0, 12)}..` : node.label}
               </text>
               {memorySeen && (
                 <text className="mem-graph-score" textAnchor="middle" y={node.radius + 16}>
@@ -662,13 +664,11 @@ function SessionPanel({
 
   const sessionHook = useSession(tokenSource, { agentName: 'memorable-agent' });
   const autoStartedRef = useRef(false);
+  const lastRunIdRef = useRef<string | null>(null);
   const tools = session?.steps ?? [];
 
   const panelTitle = mode === 'cold' ? 'Cold Session Agent A' : 'Memorable Session Agent B';
-  const panelHint =
-    mode === 'cold'
-      ? 'No shared memory. Baseline behavior.'
-      : 'Shared memory + workflow replay active.';
+  const panelHint = mode === 'cold' ? 'No shared memory.' : 'Shared memory active.';
   const memoryLocked =
     mode === 'full' &&
     !!runId &&
@@ -687,6 +687,13 @@ function SessionPanel({
     filteredMemoryCalls.length > 0
       ? filteredMemoryCalls
       : tools.map((tool) => ({ tool, outcome: mode === 'cold' ? 'failure' : 'success' }));
+
+  useEffect(() => {
+    if (runId !== lastRunIdRef.current) {
+      autoStartedRef.current = false;
+      lastRunIdRef.current = runId;
+    }
+  }, [runId]);
 
   useEffect(() => {
     if (!runId) {
@@ -720,11 +727,7 @@ function SessionPanel({
                 {replayOnly ? 'Waiting for cold trace' : 'Memory session locked'}
               </p>
               <p className="mem-live-prompt">“{promptText}”</p>
-              <p>
-                {replayOnly
-                  ? 'Cold trace is still resolving dead-end branches. Memory phase unlocks right after.'
-                  : 'Finish the cold run first. Memory starts automatically once cold completes.'}
-              </p>
+              <p>{replayOnly ? 'Locked until cold completes.' : 'Finish cold first.'}</p>
             </div>
           ) : runId && !replayOnly ? (
             <div className="mem-live-stack">
@@ -737,7 +740,14 @@ function SessionPanel({
               )}
               <AgentAudioVisualizerBar />
               <AgentChatTranscript className="mem-live-transcript" />
-              <AgentControlBar />
+              <AgentControlBar
+                controls={{
+                  microphone: true,
+                  leave: true,
+                  chat: true,
+                }}
+                isChatOpen
+              />
               <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <StartAudioButton label="Enable microphone" room={sessionHook.room} />
               </div>
@@ -772,7 +782,7 @@ function SessionPanel({
                   </p>
                 )}
                 <p style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--mem-muted)' }}>
-                  Events and metrics are streaming from a realtime trace timeline.
+                  Realtime trace stream.
                 </p>
               </div>
             </div>
@@ -805,7 +815,7 @@ function SessionPanel({
             <p className="mem-tools-empty">No tool transitions yet.</p>
           ) : (
             <p className="mem-tools-empty">
-              {toolRows.length} tool calls mapped to graph edges below.{' '}
+              {toolRows.length} tool calls mapped to graph edges.{' '}
               {toolRows.filter((row) => row.outcome === 'failure').length} dead-end edge
               {toolRows.filter((row) => row.outcome === 'failure').length === 1 ? '' : 's'}.
             </p>
@@ -1036,12 +1046,6 @@ export function DemoLayout() {
         : ('cold' as const)
     : phase;
   const memoryRunning = visualPhase === 'memory' || visualPhase === 'done';
-  const memoryWin =
-    coldComplete &&
-    displayedRun?.memory?.status === 'complete' &&
-    memTokens < coldTokens &&
-    memCost < coldCost &&
-    memDuration < coldDuration;
   const replayProgress =
     isBackupReplay && timelineEvents.length > 0
       ? Math.min(100, Math.round((replayIndex / timelineEvents.length) * 100))
@@ -1084,10 +1088,7 @@ export function DemoLayout() {
         <header>
           <p className="mem-section-label">LIVE BENCHMARK</p>
           <h1 className="mem-demo-title">Cold vs Memorable</h1>
-          <p className="mem-demo-sub">
-            Cold run must finish first. Then memory run starts on the same prompt and shows the
-            delta in tokens, cost, duration, and tool path complexity.
-          </p>
+          <p className="mem-demo-sub">Cold first. Memory second.</p>
 
           <div className="mem-phase-track" aria-label="Run phases">
             <div
@@ -1098,15 +1099,15 @@ export function DemoLayout() {
               }`}
             >
               <span>1</span>
-              <strong>Run cold baseline</strong>
+              <strong>Run cold</strong>
             </div>
             <div className={`mem-phase-step ${coldComplete ? 'is-done' : ''}`}>
               <span>2</span>
-              <strong>Finish cold session</strong>
+              <strong>Cold complete</strong>
             </div>
             <div className={`mem-phase-step ${memoryRunning ? 'is-live' : ''}`}>
               <span>3</span>
-              <strong>Run memory session</strong>
+              <strong>Run memory</strong>
             </div>
           </div>
 
@@ -1168,22 +1169,22 @@ export function DemoLayout() {
           <div className="mem-panel mem-kpi mem-kpi-good">
             <p className="kpi-label">Tokens saved</p>
             <p className="kpi-value">-{Math.max(0, tokenDelta).toLocaleString()}</p>
-            <p className="kpi-meta">{tokenDropPct.toFixed(1)}% lower than cold</p>
+            <p className="kpi-meta">{tokenDropPct.toFixed(1)}%</p>
           </div>
           <div className="mem-panel mem-kpi mem-kpi-good">
             <p className="kpi-label">Cost saved</p>
             <p className="kpi-value">{fmtUsd(Math.max(0, coldCost - memCost))}</p>
-            <p className="kpi-meta">{costDropPct.toFixed(1)}% lower than cold</p>
+            <p className="kpi-meta">{costDropPct.toFixed(1)}%</p>
           </div>
           <div className="mem-panel mem-kpi mem-kpi-good">
             <p className="kpi-label">Duration saved</p>
             <p className="kpi-value">-{fmtMs(Math.max(0, coldDuration - memDuration))}</p>
-            <p className="kpi-meta">{timeDropPct.toFixed(1)}% faster than cold</p>
+            <p className="kpi-meta">{timeDropPct.toFixed(1)}%</p>
           </div>
           <div className="mem-panel mem-kpi mem-kpi-good">
             <p className="kpi-label">Tool calls reduced</p>
             <p className="kpi-value">{Math.max(0, coldToolCalls - memToolCalls)} fewer</p>
-            <p className="kpi-meta">{toolDropPct.toFixed(1)}% fewer calls</p>
+            <p className="kpi-meta">{toolDropPct.toFixed(1)}%</p>
           </div>
         </section>
 
@@ -1221,14 +1222,7 @@ export function DemoLayout() {
 
         <section className="mem-panel mem-diff">
           <div className="mem-diff-head">
-            <p className="mem-section-label">WHY MEMORABLE IS BETTER</p>
-            {coldComplete && displayedRun?.memory?.status === 'complete' && (
-              <p className={`mem-verdict-line ${memoryWin ? 'is-win' : 'is-mixed'}`}>
-                {memoryWin
-                  ? 'MEMORY WIN: lower tokens, lower cost, faster completion.'
-                  : 'Mixed result: memory did not beat cold on all primary metrics.'}
-              </p>
-            )}
+            <p className="mem-section-label">DELTA</p>
             <p className="mem-diff-summary">
               {displayedRun?.cold?.status === 'complete' &&
               displayedRun?.memory?.status === 'complete'
@@ -1237,26 +1231,20 @@ export function DemoLayout() {
                   )}. Memorable used ${memorySteps.length} steps, ${memTokens.toLocaleString()} tokens, ${fmtMs(
                     displayedRun.memory.stats.duration_ms
                   )}.`
-                : 'Run cold and then memory to see direct speed and token gains.'}
+                : 'Run cold, then memory.'}
             </p>
             {divergence && (
               <p className="mem-diff-summary">
-                First behavior split happened at step {divergence.index + 1}:{' '}
+                Split at step {divergence.index + 1}:{' '}
                 <strong>{humanizeToolName(divergence.cold ?? 'none')}</strong> vs{' '}
                 <strong>{humanizeToolName(divergence.memory ?? 'none')}</strong>.
               </p>
             )}
-            {coldComplete && displayedRun?.memory?.status === 'complete' && (
-              <p className="mem-diff-summary">
-                Win moment: memory avoids dead-end fare class retries and resolves rebooking in one
-                pass.
-              </p>
-            )}
             {coldDeadEndCount > 0 && (
               <p className="mem-diff-summary">
-                Cold path hit <strong>{coldDeadEndCount}</strong> dead-end branch
+                Cold hit <strong>{coldDeadEndCount}</strong> dead-end branch
                 {coldDeadEndCount > 1 ? 'es' : ''}, adding about{' '}
-                <strong>{fmtMs(estimatedDeadEndMs)}</strong> avoidable time.
+                <strong>{fmtMs(estimatedDeadEndMs)}</strong>.
               </p>
             )}
             <div className="mem-diff-pills">
@@ -1321,7 +1309,7 @@ export function DemoLayout() {
               </p>
               {isBackupReplay && (
                 <p style={{ marginTop: 4, color: 'var(--mem-purple)', fontSize: '0.78rem' }}>
-                  Playing realtime traces in timeline order ({replayProgress}%)
+                  Realtime traces ({replayProgress}%)
                 </p>
               )}
             </div>
@@ -1330,9 +1318,7 @@ export function DemoLayout() {
 
           <div className="mem-log-list">
             {compactEvents.length === 0 ? (
-              <p style={{ color: 'var(--mem-muted)', fontSize: '0.78rem' }}>
-                Run the benchmark to capture trace evidence.
-              </p>
+              <p style={{ color: 'var(--mem-muted)', fontSize: '0.78rem' }}>No events.</p>
             ) : (
               compactEvents.map((event, i) => (
                 <div
