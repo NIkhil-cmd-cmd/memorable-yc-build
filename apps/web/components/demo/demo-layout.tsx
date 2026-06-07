@@ -473,15 +473,6 @@ function WorkflowGraph({
     <section className="mem-panel mem-workflow-graph">
       <div className="mem-graph-head">
         <p className="mem-section-label">Shared Workflow Graph</p>
-        <p className="mem-graph-note">
-          Nodes are agent states. Edges are tool executions. Memory reweights traversal in the same
-          graph.
-        </p>
-        <p className="mem-graph-legend">
-          <span className="neutral">gray: unvisited</span> ·{' '}
-          <span className="cold">red: cold dead-end exploration</span> ·{' '}
-          <span className="memory">green: memory replay path</span>
-        </p>
       </div>
       <svg viewBox={`0 0 ${viewW} ${viewH}`} className="mem-graph-svg" aria-hidden>
         <defs>
@@ -494,9 +485,6 @@ function WorkflowGraph({
             </feMerge>
           </filter>
         </defs>
-        <text x={viewW / 2} y={36} textAnchor="middle" className="mem-graph-shared-label">
-          gnn workflow state space
-        </text>
         {edges.map((edge) => {
           const source = nodeMap.get(edge.source);
           const target = nodeMap.get(edge.target);
@@ -787,7 +775,7 @@ function SessionPanel({
               </div>
             </div>
           ) : (
-            <p className="mem-tools-empty">Start a run to open this session.</p>
+            <p className="mem-tools-empty" />
           )}
         </div>
 
@@ -809,10 +797,10 @@ function SessionPanel({
         <div className="mem-panel-muted mem-tools">
           <p className="mem-section-label">Tool Trace Overlay</p>
           <p className="mem-tool-current">
-            Current action: {currentTool ? humanizeToolName(currentTool) : 'waiting...'}
+            Current action: {currentTool ? humanizeToolName(currentTool) : '-'}
           </p>
           {toolRows.length === 0 ? (
-            <p className="mem-tools-empty">No tool transitions yet.</p>
+            <p className="mem-tools-empty" />
           ) : (
             <p className="mem-tools-empty">
               {toolRows.length} tool calls mapped to graph edges.{' '}
@@ -1086,7 +1074,6 @@ export function DemoLayout() {
       <div className="mem-grid-bg" aria-hidden="true" />
       <div className="mem-demo">
         <header>
-          <p className="mem-section-label">LIVE BENCHMARK</p>
           <h1 className="mem-demo-title">Cold vs Memorable</h1>
           <p className="mem-demo-sub">Cold first. Memory second.</p>
 
@@ -1288,12 +1275,6 @@ export function DemoLayout() {
           <article className="mem-panel" style={{ padding: '12px' }}>
             <p className="mem-section-label">Dead-end avoided</p>
             <p className="metric-value">{deadEnd}</p>
-          </article>
-          <article className="mem-panel" style={{ padding: '12px' }}>
-            <p className="mem-section-label">Scenario prompt</p>
-            <p style={{ marginTop: 6, fontSize: '0.84rem', lineHeight: 1.45 }}>
-              {SCENARIOS[scenario].prompt}
-            </p>
           </article>
         </section>
 
