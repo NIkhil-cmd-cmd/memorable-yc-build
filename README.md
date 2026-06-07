@@ -1,5 +1,30 @@
 # Memorable
 
+## Shared memory infrastructure for AI agents.
+
+Memorable is a self-adapting memory layer for enterprise voice agents. Instead of starting every call from scratch, agents warm-start from workflows that already worked — cutting token usage, reducing errors, and resolving customer issues faster.
+
+## How it works
+
+Every agent run produces a tool trace: the sequence of API calls, decisions, and outcomes that led to a resolution (or didn’t). Memorable captures these traces and trains a graph neural network over them, extracting reusable workflow structures across thousands of runs. When a new agent encounters a similar task, it retrieves a proven strategy before falling back to blind exploration.
+
+Three memory layers make this possible:
+
+- Episodic — raw interaction traces with full provenance from individual runs
+- Semantic — embeddings and similarity structure extracted across many runs via Moss
+- Workflow — compressed execution graphs that agents can invoke directly
+
+## Benchmarks
+
+On a standardized airline cancellation prompt, a cold-start agent retries restricted-fare dead ends and eventually escalates. An agent with Memorable’s memory retrieves a learned waiver -> partner-flight -> same-day-policy workflow and resolves in a single pass — fewer steps, lower token cost, faster completion.
+
+## Stack
+
+- LiveKit — voice runtime
+- Moss — retrieval and embeddings
+- TrueFoundry — model-agnostic routing
+- MiniMax — primary routed model
+
 **Memorable is a shared memory network for enterprise agents.**
 
 It captures successful traces, learns reusable workflows, and replays higher-quality paths on future runs.
