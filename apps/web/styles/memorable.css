@@ -1595,7 +1595,7 @@
   border: 1px solid color-mix(in oklab, var(--mem-border) 86%, #9aa9c4);
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 254, 0.95)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 248, 252, 0.96)),
     repeating-linear-gradient(
       90deg,
       rgba(58, 80, 112, 0.03) 0px,
@@ -1606,114 +1606,118 @@
 }
 
 .mem-graph-shared-label {
-  fill: rgba(53, 82, 119, 0.6);
+  fill: rgba(53, 82, 119, 0.52);
   font-size: 11px;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-}
-
-.mem-graph-row-label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.mem-graph-row-label.cold {
-  fill: #8f3b2f;
-}
-
-.mem-graph-row-label.memory {
-  fill: #17784a;
-}
-
-.mem-graph-track {
-  stroke-width: 1.5;
-  stroke-dasharray: 4 5;
-}
-
-.mem-graph-track.cold {
-  stroke: rgba(143, 59, 47, 0.38);
-}
-
-.mem-graph-track.memory {
-  stroke: rgba(23, 120, 74, 0.38);
 }
 
 .mem-graph-edge {
-  stroke-width: 3.4;
+  stroke: rgba(84, 102, 129, 0.3);
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition:
+    opacity 240ms ease,
+    stroke 240ms ease,
+    stroke-width 240ms ease;
 }
 
-.mem-graph-edge.cold {
-  stroke: rgba(143, 59, 47, 0.68);
+.mem-graph-edge.is-neutral {
+  stroke: rgba(88, 108, 138, 0.34);
 }
 
-.mem-graph-edge.memory {
-  stroke: rgba(23, 120, 74, 0.84);
+.mem-graph-edge.is-cold {
+  stroke: rgba(150, 87, 77, 0.55);
 }
 
-.mem-graph-edge.cold.is-divergence {
-  stroke-width: 4;
-  stroke: rgba(143, 59, 47, 0.92);
+.mem-graph-edge.is-memory {
+  stroke: rgba(27, 133, 84, 0.7);
 }
 
-.mem-graph-edge.cold.is-dead-end {
-  stroke-width: 4;
-  stroke: rgba(143, 59, 47, 0.95);
-  stroke-dasharray: 5 4;
+.mem-graph-edge.is-dead-end {
+  stroke: rgba(167, 74, 63, 0.86);
+  stroke-dasharray: 4 5;
 }
 
-.mem-graph-edge.memory.is-win {
-  stroke-width: 4.6;
-  stroke: rgba(23, 120, 74, 0.95);
+.mem-graph-edge.is-divergence {
+  stroke-opacity: 0.94;
+}
+
+.mem-graph-edge.is-replay-live {
+  stroke: rgba(24, 144, 86, 0.95);
+  filter: drop-shadow(0 0 7px rgba(24, 144, 86, 0.45));
+}
+
+.mem-graph-edge:not(.is-visible) {
+  opacity: 0.2;
 }
 
 .mem-graph-node {
-  stroke-width: 1.6;
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.62))
-    drop-shadow(0 2px 3px rgba(16, 28, 48, 0.08));
+  fill: rgba(214, 223, 238, 0.42);
+  stroke: rgba(79, 98, 129, 0.56);
+  transition:
+    fill 260ms ease,
+    stroke 260ms ease,
+    opacity 260ms ease;
 }
 
-.mem-graph-node.cold {
-  fill: rgba(143, 59, 47, 0.13);
-  stroke: rgba(143, 59, 47, 0.6);
+.mem-graph-node.is-neutral {
+  fill: rgba(222, 230, 243, 0.6);
+  stroke: rgba(105, 120, 145, 0.5);
 }
 
-.mem-graph-node.memory {
-  fill: rgba(23, 120, 74, 0.11);
-  stroke: rgba(23, 120, 74, 0.62);
+.mem-graph-node.is-cold {
+  fill: rgba(162, 184, 214, 0.3);
+  stroke: rgba(83, 111, 153, 0.62);
 }
 
-.mem-graph-node.cold.is-divergence {
-  fill: rgba(143, 59, 47, 0.2);
-}
-
-.mem-graph-node.memory.is-win {
-  fill: rgba(23, 120, 74, 0.2);
+.mem-graph-node.is-memory {
+  fill: rgba(122, 195, 159, 0.2);
+  stroke: rgba(24, 132, 81, 0.74);
 }
 
 .mem-graph-node.is-dead-end {
-  fill: rgba(143, 59, 47, 0.2);
-  stroke: rgba(143, 59, 47, 0.84);
+  fill: rgba(180, 87, 73, 0.22);
+  stroke: rgba(165, 69, 55, 0.88);
+  opacity: 0.58;
 }
 
-.mem-graph-node-live {
-  fill: rgba(23, 120, 74, 0.95);
+.mem-graph-node.is-active {
+  filter: drop-shadow(0 0 8px rgba(29, 154, 95, 0.4));
+}
+
+.mem-graph-node-halo {
+  fill: rgba(29, 154, 95, 0.24);
 }
 
 .mem-graph-travel-dot {
-  fill: rgba(23, 120, 74, 0.92);
+  fill: rgba(24, 145, 87, 0.95);
   stroke: rgba(255, 255, 255, 0.85);
   stroke-width: 1;
+  filter: drop-shadow(0 0 9px rgba(24, 145, 87, 0.6));
 }
 
 .mem-graph-label {
   fill: #101a2a;
-  font-size: 8.8px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.mem-graph-score {
+  fill: rgba(24, 132, 81, 0.82);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mem-graph-dead-mark {
+  fill: rgba(167, 74, 63, 0.85);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
 @media (max-width: 1100px) {

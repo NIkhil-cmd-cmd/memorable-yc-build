@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import {
+  type SimulationLinkDatum,
+  type SimulationNodeDatum,
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+} from 'd3-force';
 import { TokenSource } from 'livekit-client';
 import { RoomAudioRenderer, useSession } from '@livekit/components-react';
 import { AgentAudioVisualizerBar } from '@/components/agents-ui/agent-audio-visualizer-bar';
@@ -221,219 +230,324 @@ function WorkflowGraph({
   memorySteps,
   divergenceIndex,
   coldCalls,
+  phase,
+  coldCurrentTool,
+  memoryCurrentTool,
 }: {
   coldSteps: string[];
   memorySteps: string[];
   divergenceIndex: number | null;
   coldCalls: { tool: string; outcome: string }[];
+  phase: 'idle' | 'cold' | 'memory' | 'done';
+  coldCurrentTool: string | null;
+  memoryCurrentTool: string | null;
 }) {
-  const memoryBackbone = Array.from(new Set(memorySteps)).slice(0, 8);
-  const coldUnique = Array.from(new Set(coldSteps)).slice(0, 10);
-  const coldOnly = coldUnique.filter((tool) => !memoryBackbone.includes(tool)).slice(0, 6);
+  const viewW = 1180;
+  const viewH = 520;
+  const edgeId = (source: string, target: string) => `${source}->${target}`;
 
-  const viewW = 1080;
-  const viewH = 450;
-  const leftPad = 120;
-  const rightPad = 120;
-  const centerY = 245;
-  const span = Math.max(1, memoryBackbone.length - 1);
-  const memoryPositions = new Map(
-    memoryBackbone.map((tool, idx) => {
-      const x = leftPad + ((viewW - leftPad - rightPad) * idx) / span;
-      return [tool, { x, y: centerY }];
-    })
-  );
+  type GraphNode = {
+    id: string;
+    label: string;
+    visitCount: number;
+    replayScore: number;
+    coldVisited: boolean;
+    memoryVisited: boolean;
+    deadEnd: boolean;
+    degree: number;
+  };
 
-  const coldOnlyPositions = new Map<string, { x: number; y: number }>();
-  coldOnly.forEach((tool, idx) => {
-    const coldIdx = coldSteps.indexOf(tool);
-    const parentTool =
-      coldIdx > 0
-        ? coldSteps
-            .slice(0, coldIdx)
-            .reverse()
-            .find((candidate) => memoryPositions.has(candidate))
-        : null;
-    const parent = parentTool ? memoryPositions.get(parentTool) : null;
-    const laneY = idx % 2 === 0 ? 115 : 360;
-    const xNudge = idx % 2 === 0 ? 0 : 36;
-    const fallbackX =
-      leftPad + ((viewW - leftPad - rightPad) * Math.min(idx, span)) / Math.max(span, 1);
-    coldOnlyPositions.set(tool, {
-      x: Math.max(96, Math.min(viewW - 96, (parent?.x ?? fallbackX) + xNudge)),
-      y: laneY,
+  type GraphEdge = {
+    id: string;
+    source: string;
+    target: string;
+    frequency: number;
+    selectedByMemory: boolean;
+    coldSeen: boolean;
+    memorySeen: boolean;
+    deadEnd: boolean;
+    orderCold: number | null;
+    orderMemory: number | null;
+  };
+
+  type SimNode = GraphNode &
+    SimulationNodeDatum & {
+      radius: number;
+      fx?: number;
+      fy?: number;
+    };
+  type SimLink = SimulationLinkDatum<SimNode> & {
+    source: string | SimNode;
+    target: string | SimNode;
+    strength: number;
+  };
+
+  const coldCurrentIndex = coldCurrentTool ? coldSteps.lastIndexOf(coldCurrentTool) : -1;
+  const memoryCurrentIndex = memoryCurrentTool ? memorySteps.lastIndexOf(memoryCurrentTool) : -1;
+  const coldProgress =
+    phase === 'idle' ? -1 : phase === 'cold' ? coldCurrentIndex : coldSteps.length - 1;
+  const memoryProgress =
+    phase === 'done' ? memorySteps.length - 1 : phase === 'memory' ? memoryCurrentIndex : -1;
+
+  const { nodes, edges } = useMemo(() => {
+    const deadEndNodeSet = new Set(
+      coldCalls.filter((call) => call.outcome === 'failure').map((call) => call.tool)
+    );
+    const deadEndEdgeSet = new Set(
+      coldCalls
+        .map((call, idx) => (idx > 0 ? edgeId(coldSteps[idx - 1] ?? '', call.tool) : ''))
+        .filter((id) => id && deadEndNodeSet.has(id.split('->')[1] ?? ''))
+    );
+
+    const visits = new Map<string, number>();
+    [...coldSteps, ...memorySteps].forEach((tool) => {
+      visits.set(tool, (visits.get(tool) ?? 0) + 1);
     });
-  });
+    const coldSet = new Set(coldSteps);
+    const memorySet = new Set(memorySteps);
 
-  const nodePos = new Map<string, { x: number; y: number }>([
-    ...memoryPositions.entries(),
-    ...coldOnlyPositions.entries(),
-  ]);
+    const memoryRank = new Map<string, number>();
+    memorySteps.forEach((tool, idx) => {
+      const score = 1 - (idx / Math.max(memorySteps.length, 1)) * 0.35;
+      memoryRank.set(tool, Math.max(memoryRank.get(tool) ?? 0, score));
+    });
 
-  const memoryPath = memoryBackbone.filter((tool) => nodePos.has(tool));
-  const pathD = memoryPath
-    .map((tool, idx) => {
-      const p = nodePos.get(tool)!;
-      return `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`;
-    })
-    .join(' ');
+    const edgeMap = new Map<string, GraphEdge>();
+    const addEdge = (source: string, target: string, mode: 'cold' | 'memory', order: number) => {
+      const id = edgeId(source, target);
+      const prev = edgeMap.get(id);
+      edgeMap.set(id, {
+        id,
+        source,
+        target,
+        frequency: (prev?.frequency ?? 0) + 1,
+        selectedByMemory: (prev?.selectedByMemory ?? false) || mode === 'memory',
+        coldSeen: (prev?.coldSeen ?? false) || mode === 'cold',
+        memorySeen: (prev?.memorySeen ?? false) || mode === 'memory',
+        deadEnd: (prev?.deadEnd ?? false) || deadEndEdgeSet.has(id),
+        orderCold: mode === 'cold' ? order : (prev?.orderCold ?? null),
+        orderMemory: mode === 'memory' ? order : (prev?.orderMemory ?? null),
+      });
+    };
 
-  const coldEdgeKeys = coldSteps
-    .map((tool, i) => (i === 0 ? null : `${coldSteps[i - 1]}->${tool}`))
-    .filter((edge): edge is string => Boolean(edge));
-  const memoryEdgeKeys = memorySteps
-    .map((tool, i) => (i === 0 ? null : `${memorySteps[i - 1]}->${tool}`))
-    .filter((edge): edge is string => Boolean(edge));
-  const deadEndEdges = new Set(
-    coldCalls
-      .filter((c) => c.outcome === 'failure')
-      .map((call, i) => `${coldSteps[i - 1] ?? ''}->${call.tool}`)
-      .filter((x) => x !== '->')
+    coldSteps.forEach((tool, idx) => {
+      if (idx === 0) return;
+      addEdge(coldSteps[idx - 1], tool, 'cold', idx - 1);
+    });
+    memorySteps.forEach((tool, idx) => {
+      if (idx === 0) return;
+      addEdge(memorySteps[idx - 1], tool, 'memory', idx - 1);
+    });
+
+    const degree = new Map<string, number>();
+    edgeMap.forEach((edge) => {
+      degree.set(edge.source, (degree.get(edge.source) ?? 0) + edge.frequency);
+      degree.set(edge.target, (degree.get(edge.target) ?? 0) + edge.frequency);
+    });
+
+    const builtNodes: GraphNode[] = Array.from(visits.keys()).map((id) => ({
+      id,
+      label: humanizeToolName(id),
+      visitCount: visits.get(id) ?? 0,
+      replayScore: memoryRank.get(id) ?? 0.25,
+      coldVisited: coldSet.has(id),
+      memoryVisited: memorySet.has(id),
+      deadEnd: deadEndNodeSet.has(id),
+      degree: degree.get(id) ?? 1,
+    }));
+
+    return {
+      nodes: builtNodes,
+      edges: Array.from(edgeMap.values()),
+    };
+  }, [coldCalls, coldSteps, memorySteps]);
+
+  const positionedNodes = useMemo(() => {
+    const maxVisit = Math.max(1, ...nodes.map((n) => n.visitCount));
+    const simNodes: SimNode[] = nodes.map((node, idx) => ({
+      ...node,
+      x: viewW * 0.5 + Math.cos(idx) * 120,
+      y: viewH * 0.5 + Math.sin(idx) * 120,
+      vx: 0,
+      vy: 0,
+      radius: 14 + (node.visitCount / maxVisit) * 13,
+    }));
+    const byDegree = [...simNodes].sort((a, b) => b.degree - a.degree);
+    if (byDegree[0]) {
+      byDegree[0].fx = viewW * 0.5;
+      byDegree[0].fy = viewH * 0.5;
+    }
+    if (byDegree[1]) {
+      byDegree[1].fx = viewW * 0.44;
+      byDegree[1].fy = viewH * 0.46;
+    }
+    if (byDegree[2]) {
+      byDegree[2].fx = viewW * 0.56;
+      byDegree[2].fy = viewH * 0.44;
+    }
+
+    const simLinks: SimLink[] = edges.map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      strength: edge.memorySeen ? 0.18 : 0.11,
+    }));
+
+    const simulation = forceSimulation(simNodes)
+      .force(
+        'link',
+        forceLink<SimNode, SimLink>(simLinks)
+          .id((n) => n.id)
+          .distance((link) => (link.strength > 0.15 ? 120 : 170))
+          .strength((link) => link.strength)
+      )
+      .force('charge', forceManyBody().strength(-380))
+      .force('center', forceCenter(viewW / 2, viewH / 2))
+      .force(
+        'collide',
+        forceCollide<SimNode>()
+          .radius((n) => n.radius + 16)
+          .strength(0.98)
+      )
+      .stop();
+
+    for (let i = 0; i < 320; i += 1) simulation.tick();
+    simulation.stop();
+
+    return simNodes.map((node) => ({
+      ...node,
+      x: Math.max(70, Math.min(viewW - 70, Number(node.x ?? viewW / 2))),
+      y: Math.max(80, Math.min(viewH - 60, Number(node.y ?? viewH / 2))),
+    }));
+  }, [edges, nodes]);
+
+  const nodeMap = useMemo(
+    () => new Map(positionedNodes.map((node) => [node.id, node])),
+    [positionedNodes]
   );
-  const deadEndNodes = new Set(
-    coldCalls.filter((call) => call.outcome === 'failure').map((call) => call.tool)
-  );
+
+  const memoryPathD = useMemo(() => {
+    const points = memorySteps
+      .map((step) => nodeMap.get(step))
+      .filter((point): point is (typeof positionedNodes)[number] => Boolean(point));
+    return points.map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  }, [memorySteps, nodeMap]);
 
   return (
     <section className="mem-panel mem-workflow-graph">
       <div className="mem-graph-head">
-        <p className="mem-section-label">Workflow Graph (Shared GNN Replay)</p>
+        <p className="mem-section-label">Shared Workflow Graph</p>
         <p className="mem-graph-note">
-          One shared graph. Cold explores branches, memory replays the ranked path.
+          One state space. Cold run explores branches; memory run replays ranked transitions.
         </p>
         <p className="mem-graph-legend">
-          <span className="cold">dead-end branch</span> · <span className="neutral">explored</span>{' '}
-          · <span className="memory">selected memory path</span>
+          <span className="neutral">gray: unvisited</span> ·{' '}
+          <span className="cold">red: cold dead-end exploration</span> ·{' '}
+          <span className="memory">green: memory replay path</span>
         </p>
       </div>
       <svg viewBox={`0 0 ${viewW} ${viewH}`} className="mem-graph-svg" aria-hidden>
         <defs>
-          <path id="mem-live-path" d={pathD || 'M 0 0'} />
+          <path id="mem-live-path" d={memoryPathD || 'M 0 0'} />
+          <filter id="mem-node-halo">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
-        <text x="26" y="44" className="mem-graph-row-label cold">
-          cold explored branches
+        <text x={viewW / 2} y={36} textAnchor="middle" className="mem-graph-shared-label">
+          gnn workflow state space
         </text>
-        <text x="26" y="428" className="mem-graph-row-label memory">
-          memory ranked path
-        </text>
-        <text x={viewW / 2} y={74} textAnchor="middle" className="mem-graph-shared-label">
-          shared gnn state space
-        </text>
-
-        {memoryBackbone.map((tool, idx) => {
-          if (idx === 0) return null;
-          const prev = nodePos.get(memoryBackbone[idx - 1]);
-          const curr = nodePos.get(tool);
-          if (!prev || !curr) return null;
-          return (
-            <line
-              key={`base-track-${tool}`}
-              x1={prev.x}
-              y1={prev.y}
-              x2={curr.x}
-              y2={curr.y}
-              className="mem-graph-track memory"
-            />
-          );
-        })}
-
-        {coldEdgeKeys.map((edgeKey, idx) => {
-          const [aTool, bTool] = edgeKey.split('->');
-          const a = nodePos.get(aTool);
-          const b = nodePos.get(bTool);
-          if (!a || !b) return null;
-          const inMemoryPath = memoryEdgeKeys.includes(edgeKey);
-          if (inMemoryPath) return null;
-          const diverged =
+        {edges.map((edge) => {
+          const source = nodeMap.get(edge.source);
+          const target = nodeMap.get(edge.target);
+          if (!source || !target) return null;
+          const coldVisible =
+            edge.orderCold !== null && coldProgress >= 0 && edge.orderCold <= coldProgress;
+          const memoryVisible =
+            edge.orderMemory !== null && memoryProgress >= 0 && edge.orderMemory <= memoryProgress;
+          const visible = coldVisible || memoryVisible;
+          const isDivergenceEdge =
             divergenceIndex !== null &&
-            coldSteps.indexOf(aTool) >= divergenceIndex &&
-            coldSteps.indexOf(bTool) >= divergenceIndex;
+            edge.orderCold !== null &&
+            edge.orderCold >= divergenceIndex;
           return (
             <line
-              key={`cold-edge-${edgeKey}-${idx}`}
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              className={`mem-graph-edge cold ${deadEndEdges.has(edgeKey) ? 'is-dead-end' : diverged ? 'is-divergence' : ''}`}
+              key={edge.id}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
+              className={`mem-graph-edge ${
+                edge.deadEnd
+                  ? 'is-dead-end'
+                  : edge.selectedByMemory
+                    ? 'is-memory'
+                    : edge.coldSeen
+                      ? 'is-cold'
+                      : 'is-neutral'
+              } ${memoryVisible ? 'is-replay-live' : ''} ${isDivergenceEdge ? 'is-divergence' : ''} ${
+                visible ? 'is-visible' : ''
+              }`}
+              style={{
+                strokeWidth: 1.2 + Math.min(4.2, edge.frequency * 1.1),
+                opacity: visible ? undefined : 0.16,
+              }}
             />
           );
         })}
 
-        {memoryEdgeKeys.map((edgeKey, idx) => {
-          const [aTool, bTool] = edgeKey.split('->');
-          const a = nodePos.get(aTool);
-          const b = nodePos.get(bTool);
-          if (!a || !b) return null;
+        {positionedNodes.map((node) => {
+          const coldSeen = coldSteps.includes(node.id);
+          const memorySeen = memorySteps.includes(node.id);
+          const activeCold = coldCurrentTool === node.id && phase === 'cold';
+          const activeMemory =
+            memoryCurrentTool === node.id && (phase === 'memory' || phase === 'done');
+          const replayGlow = memorySeen ? 0.3 + node.replayScore * 0.7 : 0;
           return (
-            <line
-              key={`mem-edge-${edgeKey}-${idx}`}
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              className={`mem-graph-edge memory ${divergenceIndex !== null && idx >= divergenceIndex ? 'is-win' : ''}`}
-            />
-          );
-        })}
-
-        {Array.from(nodePos.entries()).map(([tool, p], i) => {
-          const inMemory = memoryBackbone.includes(tool);
-          const failedNode = deadEndNodes.has(tool);
-          const coldIndex = coldSteps.indexOf(tool);
-          const diverged = divergenceIndex !== null && coldIndex >= divergenceIndex;
-          const label = humanizeToolName(tool)
-            .replace(/\bagain\b/gi, '')
-            .trim();
-          const display = label.length > 24 ? `${label.slice(0, 22)}..` : label;
-          const width = Math.min(200, Math.max(132, display.length * 7.3));
-          const height = 36;
-          return (
-            <g key={`node-${tool}-${i}`}>
-              <rect
-                x={p.x - width / 2}
-                y={p.y - height / 2}
-                width={width}
-                height={height}
-                rx="12"
-                className={`mem-graph-node ${inMemory ? 'memory' : 'cold'} ${
-                  failedNode
+            <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
+              {memorySeen && (
+                <circle
+                  r={node.radius + 7 + node.replayScore * 8}
+                  className="mem-graph-node-halo"
+                  style={{ opacity: replayGlow * (phase === 'cold' ? 0.28 : 0.56) }}
+                  filter="url(#mem-node-halo)"
+                />
+              )}
+              <circle
+                r={node.radius}
+                className={`mem-graph-node ${
+                  node.deadEnd
                     ? 'is-dead-end'
-                    : inMemory && diverged
-                      ? 'is-win'
-                      : diverged
-                        ? 'is-divergence'
-                        : ''
-                }`}
+                    : memorySeen
+                      ? 'is-memory'
+                      : coldSeen
+                        ? 'is-cold'
+                        : 'is-neutral'
+                } ${activeCold || activeMemory ? 'is-active' : ''}`}
+                style={{ strokeWidth: 1.3 + node.replayScore * 2.4 }}
               />
-              <text x={p.x} y={p.y + 4} textAnchor="middle" className="mem-graph-label">
-                {display}
+              <text className="mem-graph-label" textAnchor="middle" y={4}>
+                {node.label.length > 18 ? `${node.label.slice(0, 16)}..` : node.label}
               </text>
-              {inMemory && (
-                <circle className="mem-graph-node-live" cx={p.x} cy={p.y} r="4.5">
-                  <animate
-                    attributeName="r"
-                    values="3.8;5.8;3.8"
-                    dur="1.7s"
-                    begin={`${i * 0.14}s`}
-                    repeatCount="indefinite"
-                  />
-                  <animate
-                    attributeName="opacity"
-                    values="0.42;1;0.42"
-                    dur="1.7s"
-                    begin={`${i * 0.14}s`}
-                    repeatCount="indefinite"
-                  />
-                </circle>
+              {memorySeen && (
+                <text className="mem-graph-score" textAnchor="middle" y={node.radius + 16}>
+                  {`score ${node.replayScore.toFixed(2)}`}
+                </text>
+              )}
+              {node.deadEnd && (
+                <text className="mem-graph-dead-mark" textAnchor="middle" y={-node.radius - 10}>
+                  dead end
+                </text>
               )}
             </g>
           );
         })}
 
-        {memoryPath.length > 1 && (
-          <circle r="6.5" className="mem-graph-travel-dot">
-            <animateMotion dur="2.7s" repeatCount="indefinite">
+        {phase !== 'cold' && memoryPathD && memorySteps.length > 1 && (
+          <circle r="6.8" className="mem-graph-travel-dot">
+            <animateMotion dur="2.3s" repeatCount="indefinite">
               <mpath href="#mem-live-path" />
             </animateMotion>
           </circle>
@@ -1120,6 +1234,9 @@ export function DemoLayout() {
           memorySteps={memorySteps}
           divergenceIndex={divergence?.index ?? null}
           coldCalls={coldCalls}
+          phase={visualPhase}
+          coldCurrentTool={typeof coldCurrentTool === 'string' ? coldCurrentTool : null}
+          memoryCurrentTool={typeof memoryCurrentTool === 'string' ? memoryCurrentTool : null}
         />
 
         <section className="mem-analytics">
