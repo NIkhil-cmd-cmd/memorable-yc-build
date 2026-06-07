@@ -736,7 +736,6 @@ function SessionPanel({
                 {replayOnly ? 'Waiting for cold trace' : 'Memory session locked'}
               </p>
               <p className="mem-live-prompt">“{promptText}”</p>
-              <p>{replayOnly ? 'Locked until cold completes.' : 'Finish cold first.'}</p>
             </div>
           ) : runId && !replayOnly ? (
             <div className="mem-live-stack">
