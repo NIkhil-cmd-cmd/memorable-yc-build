@@ -180,7 +180,10 @@ export function ingestBenchmarkEvent(event: BenchmarkEvent) {
   setRun(run);
 }
 
-const BACKUP_SCENARIOS: Record<BenchmarkScenario, { cold: string[]; memory: string[] }> = {
+const BACKUP_SCENARIOS: Record<
+  BenchmarkScenario,
+  { cold: string[]; memory: string[]; moss_refs: string[] }
+> = {
   internet_dropout: {
     cold: [
       'ask_departure_time_again',
@@ -188,14 +191,22 @@ const BACKUP_SCENARIOS: Record<BenchmarkScenario, { cold: string[]; memory: stri
       'search_basic_fares',
       'choose_late_connection',
       'retry_booking_failed_fare_class',
+      'price_recheck_restricted_fare',
       'retry_booking_failed_fare_class',
       'escalate_manual_ticketing',
     ],
     memory: [
       'check_waiver_status',
       'search_partner_flights',
+      'search_partner_flights_retry',
       'apply_same_day_policy',
       'auto_rebook_and_issue_voucher',
+    ],
+    moss_refs: [
+      'waiver_policy',
+      'partner_flight_matrix',
+      'fare_rules_dead_end_list',
+      'same_day_rebook_playbook',
     ],
   },
   billing_dispute: {
@@ -209,6 +220,7 @@ const BACKUP_SCENARIOS: Record<BenchmarkScenario, { cold: string[]; memory: stri
       'reopen_ticket',
     ],
     memory: ['pull_account_billing', 'detect_duplicate_charge', 'apply_bill_credit'],
+    moss_refs: ['billing_adjustment_policy', 'duplicate_charge_runbook'],
   },
   phone_service_issue: {
     cold: [
@@ -220,7 +232,20 @@ const BACKUP_SCENARIOS: Record<BenchmarkScenario, { cold: string[]; memory: stri
       'escalate_network_ops',
     ],
     memory: ['check_outage_map', 'reset_apn_settings', 'reboot_modem'],
+    moss_refs: ['network_outage_knowledge', 'apn_recovery_playbook'],
   },
+};
+
+const BACKUP_DEAD_END_TOOLS: Record<BenchmarkScenario, string[]> = {
+  internet_dropout: [
+    'choose_late_connection',
+    'retry_booking_failed_fare_class',
+    'price_recheck_restricted_fare',
+    'escalate_manual_ticketing',
+    'search_partner_flights_retry',
+  ],
+  billing_dispute: ['escalate_tier2', 'reopen_ticket'],
+  phone_service_issue: ['factory_reset_router', 'escalate_network_ops'],
 };
 
 export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
@@ -229,15 +254,21 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
 
   const steps = BACKUP_SCENARIOS[scenario_id];
 
-  const mkSession = (mode: BenchmarkMode, tools: string[], startedAtMs: number): SessionTrace => {
+  const mkSession = (
+    mode: BenchmarkMode,
+    tools: string[],
+    startedAtMs: number,
+    mossRefs?: string[]
+  ): SessionTrace => {
     const started = new Date(startedAtMs).toISOString();
-    const stepMs = mode === 'cold' ? 880 : 360;
-    const doneAtMs = startedAtMs + tools.length * stepMs + (mode === 'cold' ? 3200 : 1200);
-    const baseIn = mode === 'cold' ? 260 : 140;
-    const baseOut = mode === 'cold' ? 340 : 185;
-    const inTok = baseIn + tools.length * (mode === 'cold' ? 90 : 35);
-    const outTok = baseOut + tools.length * (mode === 'cold' ? 120 : 44);
+    const stepMs = mode === 'cold' ? 1320 : 980;
+    const doneAtMs = startedAtMs + tools.length * stepMs + (mode === 'cold' ? 4800 : 3200);
+    const baseIn = mode === 'cold' ? 340 : 220;
+    const baseOut = mode === 'cold' ? 420 : 300;
+    const inTok = baseIn + tools.length * (mode === 'cold' ? 95 : 62);
+    const outTok = baseOut + tools.length * (mode === 'cold' ? 118 : 84);
     const estCost = Number(((inTok + outTok) * 0.0000043).toFixed(4));
+    const deadEndSet = new Set(BACKUP_DEAD_END_TOOLS[scenario_id] ?? []);
     const events: BenchmarkEvent[] = [
       {
         type: 'session_start',
@@ -268,6 +299,7 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
           layers_active: mode === 'cold' ? ['knowledge'] : ['workflow', 'semantic', 'knowledge'],
           next_action: tools[0],
           elapsed_ms: mode === 'cold' ? 32 : 18,
+          ...(mode === 'full' && mossRefs ? { moss_refs: mossRefs } : {}),
         },
       },
       ...tools.map((tool, i) => ({
@@ -279,10 +311,7 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
           scenario_id,
           tool,
           steps: tools.slice(0, i + 1),
-          outcome:
-            mode === 'cold' && (tool.includes('factory_reset') || tool.includes('escalate'))
-              ? 'failure'
-              : 'success',
+          outcome: deadEndSet.has(tool) ? 'failure' : 'success',
         },
       })),
       {
@@ -331,7 +360,7 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
   const coldStartMs = Date.now();
   run.cold = mkSession('cold', steps.cold, coldStartMs);
   const coldEndMs = run.cold.ended_at ? new Date(run.cold.ended_at).getTime() : coldStartMs + 1000;
-  run.memory = mkSession('full', steps.memory, coldEndMs + 1400);
+  run.memory = mkSession('full', steps.memory, coldEndMs + 1400, steps.moss_refs);
   run.status = 'complete';
   setRun(run);
   return run;

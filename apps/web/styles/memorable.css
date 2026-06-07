@@ -1276,6 +1276,13 @@
   line-height: 1.2;
 }
 
+.mem-live-source {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  color: var(--mem-muted);
+  letter-spacing: 0.03em;
+}
+
 .mem-live-transcript {
   max-height: 120px;
   overflow: auto;
@@ -1548,24 +1555,25 @@
 
 .mem-workflow-graph {
   margin-top: 12px;
-  padding: 12px;
+  padding: 14px;
 }
 
 .mem-graph-head {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .mem-graph-note {
   margin: 0;
-  color: var(--mem-muted);
-  font-size: 0.85rem;
+  color: #445473;
+  font-size: 0.92rem;
+  font-weight: 500;
 }
 
 .mem-graph-legend {
   margin: 0;
-  font-size: 0.78rem;
-  color: var(--mem-muted);
+  font-size: 0.84rem;
+  color: #566581;
 }
 
 .mem-graph-legend .cold {
@@ -1584,15 +1592,31 @@
   margin-top: 8px;
   width: 100%;
   height: auto;
-  border: 1px solid var(--mem-border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid color-mix(in oklab, var(--mem-border) 86%, #9aa9c4);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 254, 0.95)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(58, 80, 112, 0.03) 0px,
+      rgba(58, 80, 112, 0.03) 1px,
+      transparent 1px,
+      transparent 120px
+    );
+}
+
+.mem-graph-shared-label {
+  fill: rgba(53, 82, 119, 0.6);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 .mem-graph-row-label {
   font-size: 12px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .mem-graph-row-label.cold {
@@ -1617,7 +1641,9 @@
 }
 
 .mem-graph-edge {
-  stroke-width: 3;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .mem-graph-edge.cold {
@@ -1625,7 +1651,7 @@
 }
 
 .mem-graph-edge.memory {
-  stroke: rgba(23, 120, 74, 0.8);
+  stroke: rgba(23, 120, 74, 0.84);
 }
 
 .mem-graph-edge.cold.is-divergence {
@@ -1640,12 +1666,14 @@
 }
 
 .mem-graph-edge.memory.is-win {
-  stroke-width: 4;
+  stroke-width: 4.6;
   stroke: rgba(23, 120, 74, 0.95);
 }
 
 .mem-graph-node {
-  stroke-width: 1.4;
+  stroke-width: 1.6;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.62))
+    drop-shadow(0 2px 3px rgba(16, 28, 48, 0.08));
 }
 
 .mem-graph-node.cold {
@@ -1654,7 +1682,7 @@
 }
 
 .mem-graph-node.memory {
-  fill: rgba(23, 120, 74, 0.12);
+  fill: rgba(23, 120, 74, 0.11);
   stroke: rgba(23, 120, 74, 0.62);
 }
 
@@ -1682,9 +1710,10 @@
 }
 
 .mem-graph-label {
-  fill: #0d1524;
-  font-size: 9px;
+  fill: #101a2a;
+  font-size: 8.8px;
   font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 @media (max-width: 1100px) {
