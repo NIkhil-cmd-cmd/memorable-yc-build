@@ -231,13 +231,17 @@ function SessionPanel({
 
   return (
     <AgentSessionProvider session={sessionHook} key={`${mode}-${runId ?? 'none'}`}>
-      <article className="mem-panel mem-session">
+      <article
+        className={`mem-panel mem-session ${mode === 'cold' ? 'mem-session--cold' : 'mem-session--memory'}`}
+      >
         <div className="mem-session-head">
           <div>
             <h3 className="mem-session-title">{panelTitle}</h3>
             <p className="mem-session-copy">{panelHint}</p>
           </div>
-          <span className="mem-badge">{session?.status ?? 'idle'}</span>
+          <span className={`mem-badge ${mode === 'cold' ? 'mem-badge-cold' : 'mem-badge-memory'}`}>
+            {session?.status ?? 'idle'}
+          </span>
         </div>
 
         <div className="mem-panel-muted mem-session-audio">
@@ -341,7 +345,7 @@ function SessionPanel({
               type="button"
               disabled={!enabled || !runId}
               onClick={() => sessionHook.start()}
-              className="mem-btn"
+              className={mode === 'cold' ? 'mem-btn-cold' : 'mem-btn-memory'}
             >
               Connect
             </button>
@@ -696,7 +700,11 @@ export function DemoLayout() {
             scenario={scenario}
             modelRoute={modelRoute}
             session={displayedRun?.memory}
-            enabled={!isBackupReplay && (phase === 'memory' || phase === 'done')}
+            enabled={
+              !isBackupReplay &&
+              (phase === 'memory' || phase === 'done') &&
+              displayedRun?.cold?.status === 'complete'
+            }
             replayOnly={isBackupReplay}
             onFinish={() => setPhase('done')}
           />

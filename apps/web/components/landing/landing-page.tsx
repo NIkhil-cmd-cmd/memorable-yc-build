@@ -445,8 +445,8 @@ export function LandingPage() {
               <a href="#docs">Docs</a>
               <a href="#enterprise">Enterprise</a>
             </nav>
-            <Link href="/demo" className="mem-btn-outline" aria-label="Join waitlist">
-              Join waitlist →
+            <Link href="/demo" className="mem-btn-outline" aria-label="Open demo">
+              Open demo →
             </Link>
           </header>
 
@@ -493,7 +493,7 @@ export function LandingPage() {
                   <br />+ memory layer
                 </p>
                 <Link href="/demo" className="mem-btn-dark hero-cta" aria-label="Open demo">
-                  $ ./join{' '}
+                  $ ./demo{' '}
                   <span className="term-cursor" style={{ marginLeft: 6 }}>
                     █
                   </span>
@@ -781,8 +781,8 @@ result = await memory.query("billing dispute", mode="full")`}
             <p className="footer-copy">
               Memories that make agents <i>remarkable.</i>
             </p>
-            <Link href="/demo" className="mem-btn-dark" aria-label="Join waitlist">
-              Join the waitlist →
+            <Link href="/demo" className="mem-btn-dark" aria-label="Open demo">
+              Open demo →
             </Link>
           </section>
         </div>

@@ -1,12 +1,15 @@
 :root {
-  --mem-bg: #fafaf8;
-  --mem-text: #0a0a08;
-  --mem-muted: #5d5d56;
-  --mem-border: rgba(10, 10, 8, 0.14);
-  --mem-border-strong: rgba(10, 10, 8, 0.26);
+  --mem-bg: #f3f7fb;
+  --mem-text: #0d1524;
+  --mem-muted: #4f5d73;
+  --mem-border: rgba(13, 21, 36, 0.16);
+  --mem-border-strong: rgba(13, 21, 36, 0.28);
   --mem-pink: #e84b7a;
   --mem-green: #2abe7c;
-  --mem-purple: #7b5ea7;
+  --mem-purple: #2d5ea8;
+  --mem-blue-soft: rgba(45, 94, 168, 0.14);
+  --mem-cold: #8f3b2f;
+  --mem-memory: #255aa6;
   --mem-terminal-bg: #0d0d0d;
   --mem-terminal-text: #e8e8e2;
   --mem-serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', serif;
@@ -86,7 +89,7 @@
 }
 
 .mem-btn {
-  border: 1px solid rgba(123, 94, 167, 0.45);
+  border: 1px solid rgba(45, 94, 168, 0.5);
   color: #fff;
   background: var(--mem-purple);
 }
@@ -161,11 +164,11 @@
 }
 
 .mem-square.tint-purple {
-  background-color: rgba(180, 160, 220, 0.06);
+  background-color: rgba(129, 164, 215, 0.08);
 }
 
 .mem-square.tint-rose {
-  background-color: rgba(220, 160, 160, 0.06);
+  background-color: rgba(161, 188, 227, 0.08);
 }
 
 @keyframes square-drift {
@@ -349,24 +352,49 @@
 }
 
 .problem-line {
-  opacity: 0;
-  transform: translateY(10px);
   display: inline-block;
+  width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  border-right: 2px solid rgba(13, 21, 36, 0.75);
 }
 
 .mem-reveal.is-visible .problem-line-1 {
-  animation: problem-line-in 0.52s ease forwards;
+  animation:
+    typewriter-line-1 2.5s steps(52, end) forwards,
+    caret-blink 0.85s steps(1) 3;
 }
 
 .mem-reveal.is-visible .problem-line-2 {
-  animation: problem-line-in 0.52s ease forwards;
-  animation-delay: 0.18s;
+  animation:
+    typewriter-line-2 2.9s steps(44, end) forwards 2.55s,
+    caret-blink 0.85s steps(1) 3 2.55s,
+    caret-hide 0.01s linear forwards 5.45s;
 }
 
-@keyframes problem-line-in {
+@keyframes typewriter-line-1 {
   to {
-    opacity: 1;
-    transform: none;
+    width: 100%;
+  }
+}
+
+@keyframes typewriter-line-2 {
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes caret-blink {
+  50% {
+    border-right-color: transparent;
+  }
+}
+
+@keyframes caret-hide {
+  to {
+    border-right-color: transparent;
   }
 }
 
@@ -400,8 +428,8 @@
 }
 
 .problem-maze-core {
-  fill: rgba(123, 94, 167, 0.12);
-  stroke: rgba(123, 94, 167, 0.38);
+  fill: rgba(45, 94, 168, 0.1);
+  stroke: rgba(45, 94, 168, 0.32);
   stroke-width: 1.2;
 }
 
@@ -536,11 +564,11 @@
   0%,
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(123, 94, 167, 0.18);
+    box-shadow: 0 0 0 0 rgba(45, 94, 168, 0.2);
   }
   50% {
     transform: scale(1.04);
-    box-shadow: 0 0 0 7px rgba(123, 94, 167, 0);
+    box-shadow: 0 0 0 7px rgba(45, 94, 168, 0);
   }
 }
 
@@ -560,7 +588,7 @@
 .bus-line {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(10, 10, 8, 0.25), rgba(123, 94, 167, 0.58));
+  background: linear-gradient(90deg, rgba(13, 21, 36, 0.25), rgba(45, 94, 168, 0.62));
 }
 
 .bus-packet {
@@ -569,7 +597,7 @@
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(123, 94, 167, 0.88);
+  background: rgba(45, 94, 168, 0.88);
 }
 
 .bus-packet.p1 {
@@ -628,7 +656,7 @@
   100% {
     opacity: 0.96;
     border-color: rgba(10, 10, 8, 0.78);
-    background: rgba(123, 94, 167, 0.12);
+    background: rgba(45, 94, 168, 0.14);
   }
 }
 
@@ -661,7 +689,7 @@
 
 .step-card.active {
   border-style: dashed;
-  border-color: rgba(123, 94, 167, 0.7);
+  border-color: rgba(45, 94, 168, 0.78);
 }
 
 .step-name {
@@ -745,8 +773,8 @@
 
 .arch-box.is-focus,
 .arch-subbox.is-focus {
-  fill: rgba(123, 94, 167, 0.16);
-  stroke: rgba(123, 94, 167, 0.72);
+  fill: rgba(45, 94, 168, 0.16);
+  stroke: rgba(45, 94, 168, 0.72);
 }
 
 .arch-link {
@@ -761,13 +789,13 @@
 }
 
 .arch-link.is-focus {
-  stroke: rgba(123, 94, 167, 0.88);
+  stroke: rgba(45, 94, 168, 0.88);
   stroke-width: 2;
 }
 
 .arch-link-highlight {
   fill: none;
-  stroke: rgba(123, 94, 167, 0.25);
+  stroke: rgba(45, 94, 168, 0.25);
   stroke-width: 2;
   stroke-linecap: round;
   transition:
@@ -776,17 +804,17 @@
 }
 
 .arch-link-highlight.is-focus {
-  stroke: rgba(123, 94, 167, 0.86);
+  stroke: rgba(45, 94, 168, 0.86);
   stroke-width: 2.6;
 }
 
 .arch-travel-dot {
-  fill: rgba(123, 94, 167, 0.25);
+  fill: rgba(45, 94, 168, 0.25);
   transition: fill 0.35s ease;
 }
 
 .arch-travel-dot.is-focus {
-  fill: rgba(123, 94, 167, 0.92);
+  fill: rgba(45, 94, 168, 0.92);
 }
 
 .arch-title {
@@ -858,14 +886,14 @@
 }
 
 .scene-node-fill {
-  fill: rgba(123, 94, 167, 0.16);
+  fill: rgba(45, 94, 168, 0.16);
   stroke: rgba(10, 10, 8, 0.8);
   stroke-width: 1.4;
 }
 
 .scene-path-highlight {
   fill: none;
-  stroke: rgba(123, 94, 167, 0.92);
+  stroke: rgba(45, 94, 168, 0.92);
   stroke-width: 2;
   stroke-linecap: round;
 }
@@ -1037,7 +1065,7 @@
 .footer-cta {
   position: relative;
   margin-top: 90px;
-  border: 1px solid rgba(123, 94, 167, 0.38);
+  border: 1px solid rgba(45, 94, 168, 0.38);
   border-radius: 16px;
   padding: 22px;
   display: grid;
@@ -1250,9 +1278,9 @@
 }
 
 .mem-pill.active {
-  border-color: rgba(123, 94, 167, 0.7);
-  background: rgba(123, 94, 167, 0.12);
-  color: #3c2f56;
+  border-color: rgba(45, 94, 168, 0.7);
+  background: rgba(45, 94, 168, 0.12);
+  color: #234a86;
 }
 
 .mem-log-list {
@@ -1273,8 +1301,8 @@
 }
 
 .mem-log-row.is-divergence {
-  background: rgba(123, 94, 167, 0.08);
-  border-color: rgba(123, 94, 167, 0.45);
+  background: rgba(45, 94, 168, 0.08);
+  border-color: rgba(45, 94, 168, 0.45);
 }
 
 .mem-diff {
@@ -1319,8 +1347,60 @@
 }
 
 .mem-diff-row.is-divergence {
-  border-color: rgba(123, 94, 167, 0.64);
-  background: rgba(123, 94, 167, 0.12);
+  border-color: rgba(45, 94, 168, 0.64);
+  background: rgba(45, 94, 168, 0.12);
+}
+
+.mem-session--cold {
+  border-color: color-mix(in srgb, var(--mem-cold) 35%, transparent);
+}
+
+.mem-session--memory {
+  border-color: color-mix(in srgb, var(--mem-memory) 35%, transparent);
+}
+
+.mem-badge-cold {
+  border-color: color-mix(in srgb, var(--mem-cold) 38%, transparent);
+  color: color-mix(in srgb, var(--mem-cold) 82%, #000);
+  background: color-mix(in srgb, var(--mem-cold) 12%, #fff);
+}
+
+.mem-badge-memory {
+  border-color: color-mix(in srgb, var(--mem-memory) 38%, transparent);
+  color: color-mix(in srgb, var(--mem-memory) 82%, #000);
+  background: color-mix(in srgb, var(--mem-memory) 12%, #fff);
+}
+
+.mem-btn-cold,
+.mem-btn-memory {
+  border-radius: 8px;
+  font-family: var(--mem-mono);
+  font-size: 0.84rem;
+  text-decoration: none;
+  padding: 0.58rem 0.92rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease;
+  color: #fff;
+}
+
+.mem-btn-cold {
+  border: 1px solid color-mix(in srgb, var(--mem-cold) 62%, transparent);
+  background: var(--mem-cold);
+}
+
+.mem-btn-memory {
+  border: 1px solid color-mix(in srgb, var(--mem-memory) 62%, transparent);
+  background: var(--mem-memory);
+}
+
+.mem-btn-cold:hover,
+.mem-btn-memory:hover {
+  transform: translateY(-1px);
 }
 
 .mem-diff-step {
