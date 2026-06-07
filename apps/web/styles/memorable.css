@@ -1323,6 +1323,28 @@
   line-height: 1.52;
 }
 
+.mem-tool-outcome {
+  margin-left: 8px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--mem-border);
+  border-radius: 999px;
+  padding: 0.08rem 0.35rem;
+}
+
+.mem-tool-outcome.correct {
+  color: #17784a;
+  border-color: rgba(23, 120, 74, 0.45);
+  background: rgba(23, 120, 74, 0.1);
+}
+
+.mem-tool-outcome.dead-end {
+  color: #8f3b2f;
+  border-color: rgba(143, 59, 47, 0.45);
+  background: rgba(143, 59, 47, 0.1);
+}
+
 .mem-tools-empty {
   margin-top: 7px;
   font-size: 0.78rem;
@@ -1540,6 +1562,24 @@
   font-size: 0.85rem;
 }
 
+.mem-graph-legend {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--mem-muted);
+}
+
+.mem-graph-legend .cold {
+  color: #8f3b2f;
+}
+
+.mem-graph-legend .neutral {
+  color: #355277;
+}
+
+.mem-graph-legend .memory {
+  color: #17784a;
+}
+
 .mem-graph-svg {
   margin-top: 8px;
   width: 100%;
@@ -1593,6 +1633,12 @@
   stroke: rgba(143, 59, 47, 0.92);
 }
 
+.mem-graph-edge.cold.is-dead-end {
+  stroke-width: 4;
+  stroke: rgba(143, 59, 47, 0.95);
+  stroke-dasharray: 5 4;
+}
+
 .mem-graph-edge.memory.is-win {
   stroke-width: 4;
   stroke: rgba(23, 120, 74, 0.95);
@@ -1618,6 +1664,11 @@
 
 .mem-graph-node.memory.is-win {
   fill: rgba(23, 120, 74, 0.2);
+}
+
+.mem-graph-node.is-dead-end {
+  fill: rgba(143, 59, 47, 0.2);
+  stroke: rgba(143, 59, 47, 0.84);
 }
 
 .mem-graph-node-live {

@@ -191,10 +191,12 @@ function WorkflowGraph({
   coldSteps,
   memorySteps,
   divergenceIndex,
+  coldCalls,
 }: {
   coldSteps: string[];
   memorySteps: string[];
   divergenceIndex: number | null;
+  coldCalls: { tool: string; outcome: string }[];
 }) {
   const unique = Array.from(new Set([...coldSteps, ...memorySteps])).slice(0, 12);
   const positions = [
@@ -221,13 +223,23 @@ function WorkflowGraph({
       return `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`;
     })
     .join(' ');
+  const deadEndEdges = new Set(
+    coldCalls
+      .filter((c) => c.outcome === 'failure')
+      .map((call, i) => `${coldSteps[i - 1] ?? ''}->${call.tool}`)
+      .filter((x) => x !== '->')
+  );
 
   return (
     <section className="mem-panel mem-workflow-graph">
       <div className="mem-graph-head">
         <p className="mem-section-label">Workflow Graph (Shared GNN Replay)</p>
         <p className="mem-graph-note">
-          Cold path explores longer chain; memory path takes ranked path from retrieved graph.
+          One shared graph. Cold explores branches, memory replays the ranked path.
+        </p>
+        <p className="mem-graph-legend">
+          <span className="cold">dead-end branch</span> · <span className="neutral">explored</span>{' '}
+          · <span className="memory">selected memory path</span>
         </p>
       </div>
       <svg viewBox="0 0 900 330" className="mem-graph-svg" aria-hidden>
@@ -245,6 +257,7 @@ function WorkflowGraph({
           const a = nodePos.get(coldSteps[i - 1]);
           const b = nodePos.get(tool);
           if (!a || !b) return null;
+          const edgeKey = `${coldSteps[i - 1]}->${tool}`;
           return (
             <line
               key={`cold-edge-${i}`}
@@ -252,7 +265,13 @@ function WorkflowGraph({
               y1={a.y}
               x2={b.x}
               y2={b.y}
-              className={`mem-graph-edge cold ${divergenceIndex !== null && i - 1 >= divergenceIndex ? 'is-divergence' : ''}`}
+              className={`mem-graph-edge cold ${
+                deadEndEdges.has(edgeKey)
+                  ? 'is-dead-end'
+                  : divergenceIndex !== null && i - 1 >= divergenceIndex
+                    ? 'is-divergence'
+                    : ''
+              }`}
             />
           );
         })}
@@ -277,6 +296,7 @@ function WorkflowGraph({
         {unique.map((tool, i) => {
           const p = nodePos.get(tool)!;
           const inMemory = memorySteps.includes(tool);
+          const failedNode = coldCalls.some((c) => c.tool === tool && c.outcome === 'failure');
           const diverged = divergenceIndex !== null && coldSteps.indexOf(tool) >= divergenceIndex;
           return (
             <g key={`node-${tool}-${i}`}>
@@ -286,7 +306,15 @@ function WorkflowGraph({
                 width="104"
                 height="32"
                 rx="8"
-                className={`mem-graph-node ${inMemory ? 'memory' : 'cold'} ${inMemory && diverged ? 'is-win' : diverged ? 'is-divergence' : ''}`}
+                className={`mem-graph-node ${inMemory ? 'memory' : 'cold'} ${
+                  failedNode
+                    ? 'is-dead-end'
+                    : inMemory && diverged
+                      ? 'is-win'
+                      : diverged
+                        ? 'is-divergence'
+                        : ''
+                }`}
               />
               {inMemory && (
                 <circle className="mem-graph-node-live" cx={p.x} cy={p.y} r="4.5">
@@ -388,6 +416,10 @@ function SessionPanel({
   const promptText =
     mode === 'cold' ? SCENARIOS[scenario].coldPrompt : SCENARIOS[scenario].memoryPrompt;
   const toolTimeline = toolCallsWithOutcome(session);
+  const toolRows =
+    toolTimeline.length > 0
+      ? toolTimeline
+      : tools.map((tool) => ({ tool, outcome: mode === 'cold' ? 'failure' : 'success' }));
 
   useEffect(() => {
     if (!runId) {
@@ -495,7 +527,7 @@ function SessionPanel({
             <p className="mem-tools-empty">No tools executed yet.</p>
           ) : (
             <ol>
-              {toolTimeline.map(({ tool, outcome }, idx) => (
+              {toolRows.map(({ tool, outcome }, idx) => (
                 <li key={`${tool}-${idx}`}>
                   {idx + 1}. {humanizeToolName(tool)}{' '}
                   {outcome === 'failure' ? (
@@ -744,6 +776,12 @@ export function DemoLayout() {
     [...(displayedRun?.memory?.events ?? [])].reverse().find((event) => event.type === 'tool_call')
       ?.data.tool ?? null;
   const coldSteps = useMemo(() => displayedRun?.cold?.steps ?? [], [displayedRun?.cold?.steps]);
+  const coldCalls = useMemo(() => toolCallsWithOutcome(displayedRun?.cold), [displayedRun?.cold]);
+  const coldDeadEndCount = useMemo(
+    () => coldCalls.filter((c) => c.outcome === 'failure').length,
+    [coldCalls]
+  );
+  const estimatedDeadEndMs = coldDeadEndCount * 1200;
   const memorySteps = useMemo(
     () => displayedRun?.memory?.steps ?? [],
     [displayedRun?.memory?.steps]
@@ -937,6 +975,13 @@ export function DemoLayout() {
                 pass.
               </p>
             )}
+            {coldDeadEndCount > 0 && (
+              <p className="mem-diff-summary">
+                Cold path hit <strong>{coldDeadEndCount}</strong> dead-end branch
+                {coldDeadEndCount > 1 ? 'es' : ''}, adding about{' '}
+                <strong>{fmtMs(estimatedDeadEndMs)}</strong> avoidable time.
+              </p>
+            )}
             <div className="mem-diff-pills">
               <span className="mem-pill active positive">-{Math.max(0, tokenDelta)} tokens</span>
               <span className="mem-pill active positive">
@@ -960,6 +1005,7 @@ export function DemoLayout() {
           coldSteps={coldSteps}
           memorySteps={memorySteps}
           divergenceIndex={divergence?.index ?? null}
+          coldCalls={coldCalls}
         />
 
         <section className="mem-analytics">
