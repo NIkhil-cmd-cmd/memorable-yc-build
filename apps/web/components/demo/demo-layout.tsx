@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { TokenSource } from 'livekit-client';
 import { RoomAudioRenderer, useSession } from '@livekit/components-react';
@@ -140,37 +140,6 @@ function rebuildSession(
     events,
     steps,
     stats,
-  };
-}
-
-function aggregateFromRuns(runs: BenchmarkRun[]) {
-  const complete = runs.filter((r) => r.status === 'complete' && r.cold && r.memory);
-  if (!complete.length) {
-    return {
-      runs: 0,
-      avgTokenSavingsPct: 0,
-      deadEndsAvoided: 0,
-      avgColdTools: 0,
-      avgMemoryTools: 0,
-    };
-  }
-
-  const totalSavings = complete.reduce(
-    (acc, run) => acc + (run.summary?.token_savings_pct ?? 0),
-    0
-  );
-  const deadEndsAvoided = complete.filter((run) => run.summary?.avoided_dead_end).length;
-  const avgColdTools =
-    complete.reduce((acc, run) => acc + (run.cold?.stats.tool_calls ?? 0), 0) / complete.length;
-  const avgMemoryTools =
-    complete.reduce((acc, run) => acc + (run.memory?.stats.tool_calls ?? 0), 0) / complete.length;
-
-  return {
-    runs: complete.length,
-    avgTokenSavingsPct: totalSavings / complete.length,
-    deadEndsAvoided,
-    avgColdTools,
-    avgMemoryTools,
   };
 }
 
@@ -322,6 +291,7 @@ function SessionPanel({
   enabled,
   replayOnly,
   coldCompleteForGate,
+  autoStart,
   currentTool,
   onFinish,
 }: {
@@ -333,6 +303,7 @@ function SessionPanel({
   enabled: boolean;
   replayOnly?: boolean;
   coldCompleteForGate?: boolean;
+  autoStart?: boolean;
   currentTool?: string | null;
   onFinish: () => void;
 }) {
@@ -359,6 +330,7 @@ function SessionPanel({
   );
 
   const sessionHook = useSession(tokenSource, { agentName: 'memorable-agent' });
+  const autoStartedRef = useRef(false);
   const tools = session?.steps ?? [];
 
   const panelTitle = mode === 'cold' ? 'Cold Session' : 'Memory Session';
@@ -368,6 +340,16 @@ function SessionPanel({
       : 'Shared memory + workflow replay active.';
   const memoryLocked =
     mode === 'full' && !!runId && (!enabled || (replayOnly && !coldCompleteForGate));
+
+  useEffect(() => {
+    if (!runId) {
+      autoStartedRef.current = false;
+      return;
+    }
+    if (!autoStart || replayOnly || !enabled || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    sessionHook.start();
+  }, [autoStart, enabled, replayOnly, runId, sessionHook]);
 
   return (
     <AgentSessionProvider session={sessionHook} key={`${mode}-${runId ?? 'none'}`}>
@@ -426,7 +408,7 @@ function SessionPanel({
                   “{SCENARIOS[scenario].prompt}”
                 </p>
                 <p style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--mem-muted)' }}>
-                  Events and metrics are being replayed from a saved trace timeline.
+                  Events and metrics are streaming from a realtime trace timeline.
                 </p>
               </div>
             </div>
@@ -501,18 +483,11 @@ export function DemoLayout() {
   const [phase, setPhase] = useState<'idle' | 'cold' | 'memory' | 'done'>('idle');
   const [runId, setRunId] = useState<string | null>(null);
   const [modelRoute, setModelRoute] = useState('truefoundry-openai');
-  const [runs, setRuns] = useState<BenchmarkRun[]>([]);
   const [activeRun, setActiveRun] = useState<BenchmarkRun | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [replayIndex, setReplayIndex] = useState(0);
   const [replayPlaying, setReplayPlaying] = useState(false);
-
-  const refreshRuns = useCallback(async () => {
-    const res = await fetch('/api/benchmark/runs?limit=25', { cache: 'no-store' });
-    if (!res.ok) return;
-    const data = await res.json();
-    setRuns(data.runs ?? []);
-  }, []);
+  const isBackupReplay = activeRun?.source === 'backup';
 
   const refreshActiveRun = useCallback(async () => {
     if (!runId) return;
@@ -521,10 +496,6 @@ export function DemoLayout() {
     const data = await res.json();
     setActiveRun(data.run ?? null);
   }, [runId]);
-
-  useEffect(() => {
-    refreshRuns().catch(() => null);
-  }, [refreshRuns]);
 
   useEffect(() => {
     fetch('/api/integrations/status', { cache: 'no-store' })
@@ -549,10 +520,20 @@ export function DemoLayout() {
     if (!runId) return;
     const t = setInterval(() => {
       refreshActiveRun().catch(() => null);
-      refreshRuns().catch(() => null);
     }, 1200);
     return () => clearInterval(t);
-  }, [runId, refreshActiveRun, refreshRuns]);
+  }, [runId, refreshActiveRun]);
+
+  useEffect(() => {
+    if (isBackupReplay) return;
+    if (phase === 'cold' && activeRun?.cold?.status === 'complete') {
+      setPhase('memory');
+      return;
+    }
+    if (phase === 'memory' && activeRun?.memory?.status === 'complete') {
+      setPhase('done');
+    }
+  }, [activeRun?.cold?.status, activeRun?.memory?.status, isBackupReplay, phase]);
 
   const startDemo = useCallback(async () => {
     const res = await fetch('/api/benchmark/start', {
@@ -566,8 +547,7 @@ export function DemoLayout() {
     setRunId(nextRun.run_id);
     setActiveRun(nextRun);
     setPhase('cold');
-    refreshRuns().catch(() => null);
-  }, [scenario, refreshRuns]);
+  }, [scenario]);
 
   const reset = useCallback(async () => {
     await fetch('/api/benchmark/reset', { method: 'POST' });
@@ -576,8 +556,7 @@ export function DemoLayout() {
     setPhase('idle');
     setReplayIndex(0);
     setReplayPlaying(false);
-    refreshRuns().catch(() => null);
-  }, [refreshRuns]);
+  }, []);
 
   const loadBackup = useCallback(async () => {
     const res = await fetch('/api/benchmark/backup', {
@@ -593,10 +572,7 @@ export function DemoLayout() {
     setPhase('done');
     setReplayIndex(0);
     setReplayPlaying(true);
-    refreshRuns().catch(() => null);
-  }, [scenario, refreshRuns]);
-
-  const isBackupReplay = activeRun?.source === 'backup';
+  }, [scenario]);
 
   const timelineEvents = useMemo(() => {
     if (!activeRun) return [] as BenchmarkEvent[];
@@ -668,8 +644,6 @@ export function DemoLayout() {
     );
   }, [displayedRun]);
 
-  const aggregate = useMemo(() => aggregateFromRuns(runs), [runs]);
-
   const deadEnd = displayedRun?.summary?.avoided_dead_end ? 'Yes' : 'No';
   const coldTokens =
     (displayedRun?.cold?.stats.input_tokens ?? 0) + (displayedRun?.cold?.stats.output_tokens ?? 0);
@@ -722,6 +696,14 @@ export function DemoLayout() {
     [coldSteps, memorySteps]
   );
   const compactEvents = allEvents.slice(0, 14);
+  const currentPairComplete =
+    displayedRun?.cold?.status === 'complete' && displayedRun?.memory?.status === 'complete'
+      ? 1
+      : 0;
+  const currentSavings =
+    displayedRun?.cold?.status === 'complete' && displayedRun?.memory?.status === 'complete'
+      ? (displayedRun?.summary?.token_savings_pct ?? 0).toFixed(1)
+      : '0.0';
 
   return (
     <div className="memorable-page">
@@ -761,7 +743,7 @@ export function DemoLayout() {
               Run live: cold → memorable
             </button>
             <button type="button" onClick={loadBackup} className="mem-btn-outline">
-              Play realtime traces
+              Run traces
             </button>
             <button type="button" onClick={reset} className="mem-btn-outline">
               Reset
@@ -842,6 +824,7 @@ export function DemoLayout() {
             session={displayedRun?.cold}
             enabled={!isBackupReplay && visualPhase === 'cold'}
             replayOnly={isBackupReplay}
+            autoStart={!isBackupReplay}
             currentTool={typeof coldCurrentTool === 'string' ? coldCurrentTool : null}
             onFinish={() => setPhase('memory')}
           />
@@ -858,6 +841,7 @@ export function DemoLayout() {
             }
             replayOnly={isBackupReplay}
             coldCompleteForGate={displayedRun?.cold?.status === 'complete'}
+            autoStart={!isBackupReplay && visualPhase === 'memory'}
             currentTool={typeof memoryCurrentTool === 'string' ? memoryCurrentTool : null}
             onFinish={() => setPhase('done')}
           />
@@ -918,11 +902,11 @@ export function DemoLayout() {
         <section className="mem-analytics">
           <article className="mem-panel" style={{ padding: '12px' }}>
             <p className="mem-section-label">Completed pairs</p>
-            <p className="metric-value">{aggregate.runs}</p>
+            <p className="metric-value">{currentPairComplete}</p>
           </article>
           <article className="mem-panel" style={{ padding: '12px' }}>
             <p className="mem-section-label">Average savings</p>
-            <p className="metric-value">{aggregate.avgTokenSavingsPct.toFixed(1)}%</p>
+            <p className="metric-value">{currentSavings}%</p>
           </article>
           <article className="mem-panel" style={{ padding: '12px' }}>
             <p className="mem-section-label">Dead-end avoided</p>
