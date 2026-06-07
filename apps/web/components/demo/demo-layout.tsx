@@ -32,7 +32,6 @@ const SCENARIOS: Record<BenchmarkScenario, { label: string; prompt: string }> = 
   },
 };
 
-type EventFilter = 'all' | 'recall' | 'model_turn' | 'tool_call';
 type IntegrationStatus = {
   integrations: {
     truefoundry: {
@@ -48,6 +47,11 @@ function fmtUsd(value: number) {
 function fmtMs(value: number) {
   if (!Number.isFinite(value) || value <= 0) return '0s';
   return `${Math.round(value / 1000)}s`;
+}
+
+function pctDrop(from: number, to: number) {
+  if (from <= 0) return 0;
+  return ((from - to) / from) * 100;
 }
 
 function humanizeToolName(tool: string) {
@@ -182,6 +186,101 @@ function firstDivergence(coldSteps: string[], memorySteps: string[]) {
   return null;
 }
 
+function WorkflowGraph({
+  coldSteps,
+  memorySteps,
+  divergenceIndex,
+}: {
+  coldSteps: string[];
+  memorySteps: string[];
+  divergenceIndex: number | null;
+}) {
+  const coldCount = Math.max(2, coldSteps.length);
+  const memoryCount = Math.max(2, memorySteps.length);
+  const coldNodes = Array.from({ length: coldCount }).map((_, i) => ({
+    x: 74 + i * (760 / Math.max(1, coldCount - 1)),
+    y: 96,
+    label: coldSteps[i] ?? `cold_step_${i + 1}`,
+  }));
+  const memoryNodes = Array.from({ length: memoryCount }).map((_, i) => ({
+    x: 74 + i * (760 / Math.max(1, memoryCount - 1)),
+    y: 222,
+    label: memorySteps[i] ?? `mem_step_${i + 1}`,
+  }));
+
+  return (
+    <section className="mem-panel mem-workflow-graph">
+      <div className="mem-graph-head">
+        <p className="mem-section-label">Workflow Graph (Shared GNN Replay)</p>
+        <p className="mem-graph-note">
+          Cold path explores longer chain; memory path takes ranked path from retrieved graph.
+        </p>
+      </div>
+      <svg viewBox="0 0 900 300" className="mem-graph-svg" aria-hidden>
+        <text x="20" y="46" className="mem-graph-row-label cold">
+          cold
+        </text>
+        <text x="20" y="270" className="mem-graph-row-label memory">
+          memory
+        </text>
+
+        <line x1="60" y1="96" x2="840" y2="96" className="mem-graph-track cold" />
+        <line x1="60" y1="222" x2="840" y2="222" className="mem-graph-track memory" />
+
+        {coldNodes.map((node, i) => (
+          <g key={`cold-${node.label}-${i}`}>
+            {i > 0 && (
+              <line
+                x1={coldNodes[i - 1].x}
+                y1={coldNodes[i - 1].y}
+                x2={node.x}
+                y2={node.y}
+                className={`mem-graph-edge cold ${divergenceIndex !== null && i - 1 >= divergenceIndex ? 'is-divergence' : ''}`}
+              />
+            )}
+            <rect
+              x={node.x - 42}
+              y={node.y - 17}
+              width="84"
+              height="34"
+              rx="7"
+              className={`mem-graph-node cold ${divergenceIndex !== null && i >= divergenceIndex ? 'is-divergence' : ''}`}
+            />
+            <text x={node.x} y={node.y + 4} textAnchor="middle" className="mem-graph-label">
+              {humanizeToolName(node.label).slice(0, 14)}
+            </text>
+          </g>
+        ))}
+
+        {memoryNodes.map((node, i) => (
+          <g key={`memory-${node.label}-${i}`}>
+            {i > 0 && (
+              <line
+                x1={memoryNodes[i - 1].x}
+                y1={memoryNodes[i - 1].y}
+                x2={node.x}
+                y2={node.y}
+                className={`mem-graph-edge memory ${divergenceIndex !== null && i - 1 >= divergenceIndex ? 'is-win' : ''}`}
+              />
+            )}
+            <rect
+              x={node.x - 42}
+              y={node.y - 17}
+              width="84"
+              height="34"
+              rx="7"
+              className={`mem-graph-node memory ${divergenceIndex !== null && i >= divergenceIndex ? 'is-win' : ''}`}
+            />
+            <text x={node.x} y={node.y + 4} textAnchor="middle" className="mem-graph-label">
+              {humanizeToolName(node.label).slice(0, 14)}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </section>
+  );
+}
+
 function SessionPanel({
   mode,
   runId,
@@ -233,6 +332,7 @@ function SessionPanel({
     mode === 'cold'
       ? 'No shared memory. Baseline behavior.'
       : 'Shared memory + workflow replay active.';
+  const memoryLocked = mode === 'full' && !!runId && !enabled && !replayOnly;
 
   return (
     <AgentSessionProvider session={sessionHook} key={`${mode}-${runId ?? 'none'}`}>
@@ -250,7 +350,12 @@ function SessionPanel({
         </div>
 
         <div className="mem-panel-muted mem-session-audio">
-          {runId && !replayOnly ? (
+          {memoryLocked ? (
+            <div className="mem-memory-lock">
+              <p className="mem-section-label">Memory session locked</p>
+              <p>Finish the cold run first, then start the memory run.</p>
+            </div>
+          ) : runId && !replayOnly ? (
             <div className="mem-live-stack">
               <p className="mem-live-label">Live voice scenario</p>
               <p className="mem-live-prompt">“{SCENARIOS[scenario].prompt}”</p>
@@ -280,7 +385,7 @@ function SessionPanel({
                     color: 'var(--mem-muted)',
                   }}
                 >
-                  REPLAY STREAM
+                  REALTIME TRACE PLAYBACK
                 </p>
                 <p style={{ marginTop: 8, fontFamily: 'var(--mem-serif)', fontSize: '1.45rem' }}>
                   “{SCENARIOS[scenario].prompt}”
@@ -363,7 +468,6 @@ export function DemoLayout() {
   const [modelRoute, setModelRoute] = useState('truefoundry-openai');
   const [runs, setRuns] = useState<BenchmarkRun[]>([]);
   const [activeRun, setActiveRun] = useState<BenchmarkRun | null>(null);
-  const [logFilter, setLogFilter] = useState<EventFilter>('all');
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [replayIndex, setReplayIndex] = useState(0);
   const [replayPlaying, setReplayPlaying] = useState(false);
@@ -529,14 +633,8 @@ export function DemoLayout() {
     );
   }, [displayedRun]);
 
-  const filteredEvents = useMemo(() => {
-    if (logFilter === 'all') return allEvents;
-    return allEvents.filter((e) => e.type === logFilter);
-  }, [allEvents, logFilter]);
-
   const aggregate = useMemo(() => aggregateFromRuns(runs), [runs]);
 
-  const savings = displayedRun?.summary?.token_savings_pct ?? 0;
   const deadEnd = displayedRun?.summary?.avoided_dead_end ? 'Yes' : 'No';
   const coldTokens =
     (displayedRun?.cold?.stats.input_tokens ?? 0) + (displayedRun?.cold?.stats.output_tokens ?? 0);
@@ -546,6 +644,16 @@ export function DemoLayout() {
   const tokenDelta = coldTokens - memTokens;
   const coldCost = displayedRun?.cold?.stats.estimated_cost_usd ?? 0;
   const memCost = displayedRun?.memory?.stats.estimated_cost_usd ?? 0;
+  const coldDuration = displayedRun?.cold?.stats.duration_ms ?? 0;
+  const memDuration = displayedRun?.memory?.stats.duration_ms ?? 0;
+  const coldToolCalls = displayedRun?.cold?.stats.tool_calls ?? 0;
+  const memToolCalls = displayedRun?.memory?.stats.tool_calls ?? 0;
+  const tokenDropPct = pctDrop(coldTokens, memTokens);
+  const costDropPct = pctDrop(coldCost, memCost);
+  const timeDropPct = pctDrop(coldDuration, memDuration);
+  const toolDropPct = pctDrop(coldToolCalls, memToolCalls);
+  const coldComplete = displayedRun?.cold?.status === 'complete';
+  const memoryRunning = phase === 'memory' || phase === 'done';
   const replayProgress =
     isBackupReplay && timelineEvents.length > 0
       ? Math.min(100, Math.round((replayIndex / timelineEvents.length) * 100))
@@ -565,6 +673,7 @@ export function DemoLayout() {
     () => firstDivergence(coldSteps, memorySteps),
     [coldSteps, memorySteps]
   );
+  const compactEvents = allEvents.slice(0, 14);
 
   return (
     <div className="memorable-page">
@@ -574,41 +683,39 @@ export function DemoLayout() {
           <p className="mem-section-label">LIVE BENCHMARK</p>
           <h1 className="mem-demo-title">Cold vs Memorable</h1>
           <p className="mem-demo-sub">
-            Run cold first, then memory mode on the same scenario. Watch steps, tokens, and time
-            update live.
+            Cold run must finish first. Then memory run starts on the same prompt and shows the
+            delta in tokens, cost, duration, and tool path complexity.
           </p>
+
+          <div className="mem-phase-track" aria-label="Run phases">
+            <div
+              className={`mem-phase-step ${
+                phase === 'cold' || phase === 'memory' || phase === 'done' ? 'is-done' : ''
+              }`}
+            >
+              <span>1</span>
+              <strong>Run cold baseline</strong>
+            </div>
+            <div className={`mem-phase-step ${coldComplete ? 'is-done' : ''}`}>
+              <span>2</span>
+              <strong>Finish cold session</strong>
+            </div>
+            <div className={`mem-phase-step ${memoryRunning ? 'is-live' : ''}`}>
+              <span>3</span>
+              <strong>Run memory session</strong>
+            </div>
+          </div>
 
           <div className="mem-toolbar">
             <button type="button" onClick={startDemo} className="mem-btn">
               Run live: cold → memorable
             </button>
+            <button type="button" onClick={loadBackup} className="mem-btn-outline">
+              Play realtime traces
+            </button>
             <button type="button" onClick={reset} className="mem-btn-outline">
               Reset
             </button>
-            <button type="button" onClick={loadBackup} className="mem-btn-outline">
-              Replay scripted run
-            </button>
-            {isBackupReplay && (
-              <button
-                type="button"
-                onClick={() => setReplayPlaying((prev) => !prev)}
-                className="mem-btn-outline"
-              >
-                {replayPlaying ? 'Pause replay' : 'Resume replay'}
-              </button>
-            )}
-            {isBackupReplay && (
-              <button
-                type="button"
-                onClick={() => {
-                  setReplayIndex(0);
-                  setReplayPlaying(true);
-                }}
-                className="mem-btn-outline"
-              >
-                Restart replay
-              </button>
-            )}
             <Link href="/" className="mem-btn-outline">
               ← Landing
             </Link>
@@ -653,30 +760,26 @@ export function DemoLayout() {
           </div>
         </header>
 
-        <section className="mem-verdict">
-          <div className="mem-panel mem-kpi">
-            <p className="kpi-label">Token delta (cold - memory)</p>
-            <p className="kpi-value">{tokenDelta}</p>
+        <section className="mem-verdict mem-big-verdict">
+          <div className="mem-panel mem-kpi mem-kpi-good">
+            <p className="kpi-label">Tokens saved</p>
+            <p className="kpi-value">-{Math.max(0, tokenDelta).toLocaleString()}</p>
+            <p className="kpi-meta">{tokenDropPct.toFixed(1)}% lower than cold</p>
           </div>
-          <div className="mem-panel mem-kpi">
-            <p className="kpi-label">Token savings</p>
-            <p className="kpi-value">{savings.toFixed(1)}%</p>
-          </div>
-          <div className="mem-panel mem-kpi">
-            <p className="kpi-label">Cost delta (cold - memory)</p>
+          <div className="mem-panel mem-kpi mem-kpi-good">
+            <p className="kpi-label">Cost saved</p>
             <p className="kpi-value">{fmtUsd(Math.max(0, coldCost - memCost))}</p>
+            <p className="kpi-meta">{costDropPct.toFixed(1)}% lower than cold</p>
           </div>
-          <div className="mem-panel mem-kpi">
-            <p className="kpi-label">Dead-end avoided</p>
-            <p className="kpi-value">{deadEnd}</p>
+          <div className="mem-panel mem-kpi mem-kpi-good">
+            <p className="kpi-label">Duration saved</p>
+            <p className="kpi-value">-{fmtMs(Math.max(0, coldDuration - memDuration))}</p>
+            <p className="kpi-meta">{timeDropPct.toFixed(1)}% faster than cold</p>
           </div>
-          <div className="mem-panel mem-kpi">
-            <p className="kpi-label">Avg cold tools</p>
-            <p className="kpi-value">{aggregate.avgColdTools.toFixed(1)}</p>
-          </div>
-          <div className="mem-panel mem-kpi">
-            <p className="kpi-label">Avg memory tools</p>
-            <p className="kpi-value">{aggregate.avgMemoryTools.toFixed(1)}</p>
+          <div className="mem-panel mem-kpi mem-kpi-good">
+            <p className="kpi-label">Tool calls reduced</p>
+            <p className="kpi-value">{Math.max(0, coldToolCalls - memToolCalls)} fewer</p>
+            <p className="kpi-meta">{toolDropPct.toFixed(1)}% fewer calls</p>
           </div>
         </section>
 
@@ -748,6 +851,12 @@ export function DemoLayout() {
           </div>
         </section>
 
+        <WorkflowGraph
+          coldSteps={coldSteps}
+          memorySteps={memorySteps}
+          divergenceIndex={divergence?.index ?? null}
+        />
+
         <section className="mem-analytics">
           <article className="mem-panel" style={{ padding: '12px' }}>
             <p className="mem-section-label">Completed pairs</p>
@@ -758,7 +867,11 @@ export function DemoLayout() {
             <p className="metric-value">{aggregate.avgTokenSavingsPct.toFixed(1)}%</p>
           </article>
           <article className="mem-panel" style={{ padding: '12px' }}>
-            <p className="mem-section-label">Prompt</p>
+            <p className="mem-section-label">Dead-end avoided</p>
+            <p className="metric-value">{deadEnd}</p>
+          </article>
+          <article className="mem-panel" style={{ padding: '12px' }}>
+            <p className="mem-section-label">Scenario prompt</p>
             <p style={{ marginTop: 6, fontSize: '0.84rem', lineHeight: 1.45 }}>
               {SCENARIOS[scenario].prompt}
             </p>
@@ -773,52 +886,24 @@ export function DemoLayout() {
                 Model + memory events
               </h3>
               <p style={{ marginTop: 4, color: 'var(--mem-muted)', fontSize: '0.78rem' }}>
-                {filteredEvents.length} events
+                {allEvents.length} events
               </p>
               {isBackupReplay && (
                 <p style={{ marginTop: 4, color: 'var(--mem-purple)', fontSize: '0.78rem' }}>
-                  Replaying backup run in timeline order ({replayProgress}%)
+                  Playing realtime traces in timeline order ({replayProgress}%)
                 </p>
               )}
             </div>
-            <div className="mem-log-filters">
-              {(['all', 'recall', 'model_turn', 'tool_call'] as EventFilter[]).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setLogFilter(key)}
-                  className={`mem-pill ${logFilter === key ? 'active' : ''}`}
-                >
-                  {key}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="mem-pill"
-                onClick={() => {
-                  const blob = new Blob([JSON.stringify(filteredEvents, null, 2)], {
-                    type: 'application/json',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `memorable-${runId ?? 'run'}-${logFilter}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                Export JSON
-              </button>
-            </div>
+            <div className="mem-log-filters" />
           </div>
 
           <div className="mem-log-list">
-            {filteredEvents.length === 0 ? (
+            {compactEvents.length === 0 ? (
               <p style={{ color: 'var(--mem-muted)', fontSize: '0.78rem' }}>
                 Run the benchmark to capture trace evidence.
               </p>
             ) : (
-              filteredEvents.map((event, i) => (
+              compactEvents.map((event, i) => (
                 <div
                   className={`mem-log-row ${
                     divergence &&

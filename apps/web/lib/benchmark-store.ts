@@ -182,16 +182,40 @@ export function ingestBenchmarkEvent(event: BenchmarkEvent) {
 
 const BACKUP_SCENARIOS: Record<BenchmarkScenario, { cold: string[]; memory: string[] }> = {
   internet_dropout: {
-    cold: ['run_speed_test', 'factory_reset_router'],
+    cold: [
+      'run_speed_test',
+      'check_wifi_channel',
+      'check_dns_resolver',
+      'power_cycle_router',
+      'factory_reset_router',
+      'reprovision_router',
+      'reconnect_all_devices',
+      'escalate_field_tech',
+    ],
     memory: ['check_outage_map', 'check_line_signal', 'reboot_modem'],
   },
   billing_dispute: {
-    cold: ['escalate_tier2'],
-    memory: ['pull_account_billing', 'apply_bill_credit'],
+    cold: [
+      'pull_invoice_history',
+      'check_payment_processor',
+      'verify_plan_entitlements',
+      'reapply_promo_codes',
+      'escalate_tier2',
+      'request_manual_adjustment',
+      'reopen_ticket',
+    ],
+    memory: ['pull_account_billing', 'detect_duplicate_charge', 'apply_bill_credit'],
   },
   phone_service_issue: {
-    cold: ['factory_reset_router'],
-    memory: ['reset_apn_settings', 'reboot_modem'],
+    cold: [
+      'check_sim_registration',
+      'verify_tower_handshake',
+      'toggle_roaming_mode',
+      'factory_reset_router',
+      'reset_network_stack',
+      'escalate_network_ops',
+    ],
+    memory: ['check_outage_map', 'reset_apn_settings', 'reboot_modem'],
   },
 };
 
@@ -202,7 +226,15 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
   const steps = BACKUP_SCENARIOS[scenario_id];
 
   const mkSession = (mode: BenchmarkMode, tools: string[]): SessionTrace => {
-    const started = nowIso();
+    const startedAtMs = Date.now() + (mode === 'cold' ? 0 : 800);
+    const started = new Date(startedAtMs).toISOString();
+    const stepMs = mode === 'cold' ? 880 : 360;
+    const doneAtMs = startedAtMs + tools.length * stepMs + (mode === 'cold' ? 3200 : 1200);
+    const baseIn = mode === 'cold' ? 260 : 140;
+    const baseOut = mode === 'cold' ? 340 : 185;
+    const inTok = baseIn + tools.length * (mode === 'cold' ? 90 : 35);
+    const outTok = baseOut + tools.length * (mode === 'cold' ? 120 : 44);
+    const estCost = Number(((inTok + outTok) * 0.0000043).toFixed(4));
     const events: BenchmarkEvent[] = [
       {
         type: 'session_start',
@@ -211,20 +243,20 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
       },
       {
         type: 'model_turn',
-        timestamp: started,
+        timestamp: new Date(startedAtMs + 260).toISOString(),
         data: {
           run_id: run.run_id,
           mode,
           scenario_id,
           user_text: 'Customer support request received',
-          input_tokens: mode === 'cold' ? 160 : 120,
-          output_tokens: mode === 'cold' ? 210 : 155,
-          estimated_cost_usd: mode === 'cold' ? 0.0045 : 0.0031,
+          input_tokens: inTok,
+          output_tokens: outTok,
+          estimated_cost_usd: estCost,
         },
       },
       {
         type: 'recall',
-        timestamp: started,
+        timestamp: new Date(startedAtMs + 420).toISOString(),
         data: {
           run_id: run.run_id,
           mode,
@@ -237,19 +269,22 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
       },
       ...tools.map((tool, i) => ({
         type: 'tool_call',
-        timestamp: new Date(Date.now() + i * 400).toISOString(),
+        timestamp: new Date(startedAtMs + 700 + i * stepMs).toISOString(),
         data: {
           run_id: run.run_id,
           mode,
           scenario_id,
           tool,
           steps: tools.slice(0, i + 1),
-          outcome: tool.includes('factory_reset') ? 'failure' : 'success',
+          outcome:
+            mode === 'cold' && (tool.includes('factory_reset') || tool.includes('escalate'))
+              ? 'failure'
+              : 'success',
         },
       })),
       {
         type: 'session_end',
-        timestamp: new Date(Date.now() + 1800).toISOString(),
+        timestamp: new Date(doneAtMs).toISOString(),
         data: {
           run_id: run.run_id,
           mode,
@@ -283,7 +318,7 @@ export function addBackupRun(scenario_id: BenchmarkScenario): BenchmarkRun {
       scenario_id,
       status: 'complete',
       started_at: started,
-      ended_at: new Date(Date.now() + 1800).toISOString(),
+      ended_at: new Date(doneAtMs).toISOString(),
       events,
       steps: tools,
       stats,

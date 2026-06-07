@@ -1073,6 +1073,19 @@
   padding: 18px 24px 60px;
   position: relative;
   z-index: 1;
+  font-family:
+    'Inter',
+    'Avenir Next',
+    'Segoe UI',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+
+.mem-demo .mem-btn,
+.mem-demo .mem-btn-outline,
+.mem-demo .mem-badge {
+  font-family: inherit;
 }
 
 .mem-demo-title {
@@ -1085,8 +1098,59 @@
 .mem-demo-sub {
   margin-top: 10px;
   max-width: 840px;
-  font-size: 1rem;
+  font-size: 1.06rem;
+  line-height: 1.5;
   color: var(--mem-muted);
+}
+
+.mem-phase-track {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.mem-phase-step {
+  border: 1px solid var(--mem-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.mem-phase-step span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--mem-border-strong);
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  color: var(--mem-muted);
+}
+
+.mem-phase-step strong {
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.mem-phase-step.is-done {
+  border-color: rgba(42, 190, 124, 0.36);
+  background: rgba(42, 190, 124, 0.08);
+}
+
+.mem-phase-step.is-done span {
+  border-color: rgba(42, 190, 124, 0.52);
+  color: #137446;
+  background: rgba(42, 190, 124, 0.12);
+}
+
+.mem-phase-step.is-live {
+  border-color: rgba(45, 94, 168, 0.42);
+  background: rgba(45, 94, 168, 0.09);
 }
 
 .mem-toolbar {
@@ -1110,8 +1174,8 @@
   border: 1px solid var(--mem-border-strong);
   background: rgba(255, 255, 255, 0.8);
   border-radius: 8px;
-  font-family: var(--mem-mono);
-  font-size: 0.8rem;
+  font-family: inherit;
+  font-size: 0.86rem;
   padding: 0.48rem 0.58rem;
   color: var(--mem-text);
 }
@@ -1123,8 +1187,12 @@
   grid-template-columns: repeat(5, minmax(120px, 1fr));
 }
 
+.mem-big-verdict {
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+}
+
 .mem-kpi {
-  padding: 10px;
+  padding: 14px;
 }
 
 .mem-kpi .kpi-label {
@@ -1134,8 +1202,28 @@
 
 .mem-kpi .kpi-value {
   margin-top: 3px;
-  font-family: var(--mem-serif-alt);
-  font-size: 1.38rem;
+  font-family: var(--mem-serif);
+  font-size: 2.1rem;
+  line-height: 1;
+}
+
+.mem-kpi .kpi-meta {
+  margin-top: 7px;
+  font-size: 0.78rem;
+  color: var(--mem-muted);
+}
+
+.mem-kpi-good {
+  border-color: rgba(42, 190, 124, 0.36);
+  background: rgba(42, 190, 124, 0.09);
+}
+
+.mem-kpi-good .kpi-value {
+  color: #17784a;
+}
+
+.mem-kpi-good .kpi-meta {
+  color: #1f7a4e;
 }
 
 .mem-session-grid {
@@ -1165,13 +1253,49 @@
 
 .mem-session-copy {
   margin-top: 6px;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   color: var(--mem-muted);
 }
 
 .mem-session-audio {
   margin-top: 10px;
-  padding: 8px;
+  padding: 10px;
+}
+
+.mem-live-label {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.07em;
+  color: var(--mem-muted);
+}
+
+.mem-live-prompt {
+  margin: 6px 0 10px;
+  font-family: var(--mem-serif);
+  font-size: 1.24rem;
+  line-height: 1.2;
+}
+
+.mem-live-transcript {
+  max-height: 120px;
+  overflow: auto;
+}
+
+.mem-memory-lock {
+  min-height: 230px;
+  border: 1px dashed var(--mem-border-strong);
+  border-radius: 10px;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 12px;
+}
+
+.mem-memory-lock p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--mem-muted);
 }
 
 .mem-session-metrics {
@@ -1183,7 +1307,7 @@
 
 .mem-metric-box {
   padding: 7px;
-  font-size: 0.74rem;
+  font-size: 0.8rem;
   color: var(--mem-muted);
 }
 
@@ -1195,8 +1319,8 @@
 .mem-tools ol {
   margin: 8px 0 0;
   padding-left: 18px;
-  font-size: 0.82rem;
-  line-height: 1.6;
+  font-size: 0.86rem;
+  line-height: 1.52;
 }
 
 .mem-tools-empty {
@@ -1220,8 +1344,8 @@
 
 .mem-analytics .metric-value {
   margin-top: 4px;
-  font-family: var(--mem-serif-alt);
-  font-size: 2rem;
+  font-family: var(--mem-serif);
+  font-size: 2.2rem;
 }
 
 .mem-log {
@@ -1238,10 +1362,7 @@
 }
 
 .mem-log-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: none;
 }
 
 .mem-pill {
@@ -1249,7 +1370,7 @@
   border: 1px solid var(--mem-border);
   background: rgba(255, 255, 255, 0.8);
   padding: 0.36rem 0.74rem;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
 }
 
 .mem-pill.active {
@@ -1260,7 +1381,7 @@
 
 .mem-log-list {
   margin-top: 10px;
-  max-height: 300px;
+  max-height: 240px;
   overflow: auto;
   padding-right: 2px;
 }
@@ -1272,7 +1393,7 @@
   align-items: center;
   border-bottom: 1px solid rgba(10, 10, 8, 0.08);
   padding: 7px 0;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
 }
 
 .mem-log-row.is-divergence {
@@ -1293,7 +1414,7 @@
 .mem-diff-summary {
   margin: 0;
   color: var(--mem-muted);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
 }
 
 .mem-diff-grid {
@@ -1349,8 +1470,8 @@
 .mem-btn-cold,
 .mem-btn-memory {
   border-radius: 8px;
-  font-family: var(--mem-mono);
-  font-size: 0.84rem;
+  font-family: inherit;
+  font-size: 0.86rem;
   text-decoration: none;
   padding: 0.58rem 0.92rem;
   display: inline-flex;
@@ -1381,6 +1502,108 @@
 .mem-diff-step {
   color: var(--mem-muted);
   min-width: 24px;
+}
+
+.mem-workflow-graph {
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.mem-graph-head {
+  display: grid;
+  gap: 4px;
+}
+
+.mem-graph-note {
+  margin: 0;
+  color: var(--mem-muted);
+  font-size: 0.85rem;
+}
+
+.mem-graph-svg {
+  margin-top: 8px;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--mem-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.mem-graph-row-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mem-graph-row-label.cold {
+  fill: #8f3b2f;
+}
+
+.mem-graph-row-label.memory {
+  fill: #17784a;
+}
+
+.mem-graph-track {
+  stroke-width: 1.5;
+  stroke-dasharray: 4 5;
+}
+
+.mem-graph-track.cold {
+  stroke: rgba(143, 59, 47, 0.38);
+}
+
+.mem-graph-track.memory {
+  stroke: rgba(23, 120, 74, 0.38);
+}
+
+.mem-graph-edge {
+  stroke-width: 3;
+}
+
+.mem-graph-edge.cold {
+  stroke: rgba(143, 59, 47, 0.68);
+}
+
+.mem-graph-edge.memory {
+  stroke: rgba(23, 120, 74, 0.8);
+}
+
+.mem-graph-edge.cold.is-divergence {
+  stroke-width: 4;
+  stroke: rgba(143, 59, 47, 0.92);
+}
+
+.mem-graph-edge.memory.is-win {
+  stroke-width: 4;
+  stroke: rgba(23, 120, 74, 0.95);
+}
+
+.mem-graph-node {
+  stroke-width: 1.4;
+}
+
+.mem-graph-node.cold {
+  fill: rgba(143, 59, 47, 0.13);
+  stroke: rgba(143, 59, 47, 0.6);
+}
+
+.mem-graph-node.memory {
+  fill: rgba(23, 120, 74, 0.12);
+  stroke: rgba(23, 120, 74, 0.62);
+}
+
+.mem-graph-node.cold.is-divergence {
+  fill: rgba(143, 59, 47, 0.2);
+}
+
+.mem-graph-node.memory.is-win {
+  fill: rgba(23, 120, 74, 0.2);
+}
+
+.mem-graph-label {
+  fill: #0d1524;
+  font-size: 9px;
+  font-weight: 600;
 }
 
 @media (max-width: 1100px) {
@@ -1424,6 +1647,10 @@
   }
 
   .mem-verdict {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+
+  .mem-big-verdict {
     grid-template-columns: repeat(2, minmax(130px, 1fr));
   }
 
@@ -1478,6 +1705,10 @@
   }
 
   .mem-inline-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .mem-phase-track {
     grid-template-columns: 1fr;
   }
 

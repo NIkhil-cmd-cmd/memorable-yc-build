@@ -10,7 +10,7 @@ const STEP_CARDS = [
   {
     id: 'ingest',
     title: 'INGEST',
-    desc: 'Embed the incoming task from LiveKit session context.',
+    desc: 'Task -> embedding vector.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <rect x="4" y="8" width="16" height="12" className="scene-line" />
@@ -22,7 +22,7 @@ const STEP_CARDS = [
   {
     id: 'signal',
     title: 'SIGNAL',
-    desc: 'K-means finds nearest workflow bucket + retrieval layers.',
+    desc: 'K-means bucket lookup + L1/L2/L3 recall.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <path
@@ -35,7 +35,7 @@ const STEP_CARDS = [
   {
     id: 'relate',
     title: 'RELATE',
-    desc: 'Concat bucket embedding with graph features into shared GNN.',
+    desc: 'Concat graph features with bucket_emb -> shared GNN.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <rect x="3" y="6" width="8" height="8" className="scene-line" />
@@ -47,7 +47,7 @@ const STEP_CARDS = [
   {
     id: 'replay',
     title: 'REPLAY',
-    desc: 'Score paths and replay safest workflow at runtime.',
+    desc: 'Rank candidate paths, execute top path.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <path d="M8 6L18 12L8 18Z" className="scene-line" />
@@ -58,40 +58,40 @@ const STEP_CARDS = [
 
 const STEP_EXPLAIN: Record<string, { title: string; copy: string; points: string[] }> = {
   ingest: {
-    title: 'Ingest: Task Embedding',
-    copy: 'The current task/prompt is embedded from the live session before any routing decision.',
+    title: 'Ingest: Vectorize Input',
+    copy: 'Convert live task context into a dense vector.',
     points: [
-      'LiveKit provides live session input + metadata.',
-      'TrueFoundry carries model route metadata for inference.',
-      'A dense task vector is produced for bucket routing.',
+      'Input: prompt + session metadata.',
+      'Output: embedding e in R^d.',
+      'Route metadata preserved for run parity.',
     ],
   },
   signal: {
-    title: 'Signal: K-Means + 3-Layer Retrieval',
-    copy: 'K-means maps the task embedding to the nearest workflow bucket, then Moss retrieves layered memory.',
+    title: 'Signal: Bucket + Retrieval',
+    copy: 'Find nearest centroid, then run layered memory retrieval.',
     points: [
-      'Nearest centroid -> bucket_id for similar prior workflows.',
-      'L1 Episodic: raw traces from prior sessions.',
-      'L2 Semantic: recurring tool-use patterns and outcomes.',
-      'L3 Workflow: distilled playbooks exported from GNN.',
+      'K-means(e) -> bucket_id.',
+      'L1: episodic traces.',
+      'L2: semantic patterns.',
+      'L3: workflow playbooks.',
     ],
   },
   relate: {
-    title: 'Relate: Bucket Embedding + Shared GNN',
-    copy: 'The selected bucket embedding is concatenated with graph/tool features and passed through one shared GNN backbone.',
+    title: 'Relate: Shared GNN Scoring',
+    copy: 'Combine bucket embedding with graph features and score transitions.',
     points: [
-      'Bucket embedding injects bucket-specific priors.',
-      'Concat: [tool_graph_features | bucket_embedding].',
-      'Single shared GNN scores candidate workflow paths.',
+      'x = [tool_graph_features | bucket_emb].',
+      'Single shared GNN across buckets.',
+      'Output: ranked tool/path logits.',
     ],
   },
   replay: {
-    title: 'Replay: Path Selection Runtime',
-    copy: 'The agent receives ranked path scores and replays the best route while suppressing known dead ends.',
+    title: 'Replay: Runtime Execution',
+    copy: 'Inject memory context and execute the top-ranked path.',
     points: [
-      'Cold and memory runs stay comparable in the same scenario.',
-      'Avoid-list blocks known dead-end tools during memory mode.',
-      'Replay logs show where memory path diverges from baseline.',
+      'Cold and memory run same scenario.',
+      'Avoid-list suppresses dead-end tools.',
+      'Trace logs expose first divergence.',
     ],
   },
 };
@@ -180,10 +180,10 @@ function FlowchartScenes({ active }: { active: string }) {
               LiveKit
             </text>
             <text x="52" y="114" className="arch-copy">
-              voice rooms + stream
+              RTC stream
             </text>
             <text x="52" y="132" className="arch-copy">
-              session metadata
+              session context
             </text>
 
             <rect
@@ -198,10 +198,10 @@ function FlowchartScenes({ active }: { active: string }) {
               Trace Events
             </text>
             <text x="52" y="226" className="arch-copy">
-              tool_call / recall
+              tool_call | recall
             </text>
             <text x="52" y="244" className="arch-copy">
-              benchmark logs
+              event log
             </text>
 
             <rect
@@ -216,7 +216,7 @@ function FlowchartScenes({ active }: { active: string }) {
               TrueFoundry Route Layer
             </text>
             <text x="342" y="80" className="arch-copy">
-              openai / minimax / direct
+              openai | minimax | direct
             </text>
 
             <rect
@@ -263,7 +263,7 @@ function FlowchartScenes({ active }: { active: string }) {
               className={`arch-subbox ${signalFocus}`}
             />
             <text x="314" y="225" className="arch-copy">
-              L1 Episodic: prior session traces
+              L1 Episodic: traces
             </text>
             <rect
               x="296"
@@ -274,7 +274,7 @@ function FlowchartScenes({ active }: { active: string }) {
               className={`arch-subbox ${signalFocus}`}
             />
             <text x="314" y="269" className="arch-copy">
-              L2 Semantic: repeated patterns
+              L2 Semantic: patterns
             </text>
             <rect
               x="296"
@@ -285,7 +285,7 @@ function FlowchartScenes({ active }: { active: string }) {
               className={`arch-subbox ${signalFocus}`}
             />
             <text x="314" y="308" className="arch-copy">
-              L3 Workflow: graph playbooks
+              L3 Workflow: playbooks
             </text>
 
             <rect
@@ -300,10 +300,10 @@ function FlowchartScenes({ active }: { active: string }) {
               GNN Workflow Builder
             </text>
             <text x="678" y="206" className="arch-copy">
-              edge ranking + route scoring
+              edge/path scoring
             </text>
             <text x="678" y="224" className="arch-copy">
-              exports workflow index
+              workflow index out
             </text>
             <text x="678" y="242" className="arch-copy">
               concat [graph | bucket_emb]
@@ -321,10 +321,10 @@ function FlowchartScenes({ active }: { active: string }) {
               Agent Runtime Replay
             </text>
             <text x="668" y="334" className="arch-copy">
-              memory injected before response
+              memory context inject
             </text>
             <text x="668" y="352" className="arch-copy">
-              best path selected at turn time
+              execute top-ranked path
             </text>
 
             <path d="M208 106L326 68" className={`arch-link ${ingestFocus}`} />
@@ -677,17 +677,15 @@ export function LandingPage() {
               </div>
 
               <p className="mem-quote">
-                &gt; In this repo, memory mode runs the same scenario as cold mode and logs both
-                traces for side-by-side comparison.
+                &gt; Cold and memory execute the same scenario; both traces are logged for direct
+                comparison.
               </p>
 
               <FlowchartScenes active={activeStep} />
               <div className="integration-grid">
                 <article className="integration-card">
                   <p className="integration-name">LiveKit</p>
-                  <p className="integration-copy">
-                    Voice room transport + token minting through <code>/api/token</code>.
-                  </p>
+                  <p className="integration-copy">RTC voice stream + room/session context.</p>
                   <p className="integration-state">
                     {integrationStatus?.integrations.livekit.configured
                       ? 'configured'
@@ -696,9 +694,7 @@ export function LandingPage() {
                 </article>
                 <article className="integration-card">
                   <p className="integration-name">Moss</p>
-                  <p className="integration-copy">
-                    Retrieval over knowledge / memory / workflow indexes via Python SDK.
-                  </p>
+                  <p className="integration-copy">L1/L2/L3 retrieval + memory index queries.</p>
                   <p className="integration-state">
                     {integrationStatus?.integrations.moss.configured
                       ? 'configured'
@@ -707,9 +703,7 @@ export function LandingPage() {
                 </article>
                 <article className="integration-card">
                   <p className="integration-name">TrueFoundry</p>
-                  <p className="integration-copy">
-                    Optional OpenAI-compatible gateway route for model inference.
-                  </p>
+                  <p className="integration-copy">Model routing gateway (OpenAI/MiniMax/direct).</p>
                   <p className="integration-state">
                     {integrationStatus?.integrations.truefoundry.configured
                       ? 'configured'
