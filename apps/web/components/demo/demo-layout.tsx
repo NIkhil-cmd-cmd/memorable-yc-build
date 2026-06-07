@@ -653,6 +653,8 @@ function SessionPanel({
   const sessionHook = useSession(tokenSource, { agentName: 'memorable-agent' });
   const autoStartedRef = useRef(false);
   const lastRunIdRef = useRef<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
   const tools = session?.steps ?? [];
 
   const panelTitle = mode === 'cold' ? 'Cold Session Agent A' : 'Memorable Session Agent B';
@@ -680,8 +682,27 @@ function SessionPanel({
     if (runId !== lastRunIdRef.current) {
       autoStartedRef.current = false;
       lastRunIdRef.current = runId;
+      setConnectionError(null);
+      setConnected(false);
     }
   }, [runId]);
+
+  useEffect(() => {
+    if (sessionHook.isConnected) {
+      setConnected(true);
+      setConnectionError(null);
+    }
+  }, [sessionHook.isConnected]);
+
+  const connectSession = useCallback(async () => {
+    try {
+      setConnectionError(null);
+      await sessionHook.start();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to connect';
+      setConnectionError(message);
+    }
+  }, [sessionHook]);
 
   useEffect(() => {
     if (!runId) {
@@ -690,8 +711,8 @@ function SessionPanel({
     }
     if (!autoStart || replayOnly || !enabled || autoStartedRef.current) return;
     autoStartedRef.current = true;
-    sessionHook.start();
-  }, [autoStart, enabled, replayOnly, runId, sessionHook]);
+    connectSession().catch(() => null);
+  }, [autoStart, connectSession, enabled, replayOnly, runId]);
 
   return (
     <AgentSessionProvider session={sessionHook} key={`${mode}-${runId ?? 'none'}`}>
@@ -736,6 +757,20 @@ function SessionPanel({
                 }}
                 isChatOpen
               />
+              {!connected && (
+                <button
+                  type="button"
+                  onClick={() => connectSession()}
+                  className={mode === 'cold' ? 'mem-btn-cold' : 'mem-btn-memory'}
+                >
+                  Connect call
+                </button>
+              )}
+              {connectionError && (
+                <p className="mem-tools-empty" style={{ color: '#8f3b2f' }}>
+                  {connectionError}
+                </p>
+              )}
               <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <StartAudioButton label="Enable microphone" room={sessionHook.room} />
               </div>
@@ -821,7 +856,7 @@ function SessionPanel({
             <button
               type="button"
               disabled={!enabled || !runId}
-              onClick={() => sessionHook.start()}
+              onClick={() => connectSession()}
               className={mode === 'cold' ? 'mem-btn-cold' : 'mem-btn-memory'}
             >
               Connect
