@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { TokenSource } from 'livekit-client';
-import { useSession } from '@livekit/components-react';
+import { RoomAudioRenderer, useSession } from '@livekit/components-react';
+import { AgentAudioVisualizerBar } from '@/components/agents-ui/agent-audio-visualizer-bar';
+import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
+import { AgentControlBar } from '@/components/agents-ui/agent-control-bar';
 import { AgentSessionProvider } from '@/components/agents-ui/agent-session-provider';
 import { StartAudioButton } from '@/components/agents-ui/start-audio-button';
 import type {
@@ -187,6 +190,7 @@ function SessionPanel({
   session,
   enabled,
   replayOnly,
+  currentTool,
   onFinish,
 }: {
   mode: BenchmarkMode;
@@ -196,6 +200,7 @@ function SessionPanel({
   session: BenchmarkRun['cold'] | BenchmarkRun['memory'];
   enabled: boolean;
   replayOnly?: boolean;
+  currentTool?: string | null;
   onFinish: () => void;
 }) {
   const tokenSource = useMemo(
@@ -246,35 +251,16 @@ function SessionPanel({
 
         <div className="mem-panel-muted mem-session-audio">
           {runId && !replayOnly ? (
-            <div
-              style={{
-                minHeight: 248,
-                display: 'grid',
-                placeItems: 'center',
-                textAlign: 'center',
-                padding: '16px',
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    fontSize: '0.74rem',
-                    letterSpacing: '0.08em',
-                    color: 'var(--mem-muted)',
-                  }}
-                >
-                  LIVE VOICE SCENARIO
-                </p>
-                <p style={{ marginTop: 8, fontFamily: 'var(--mem-serif)', fontSize: '1.45rem' }}>
-                  “{SCENARIOS[scenario].prompt}”
-                </p>
-                <p style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--mem-muted)' }}>
-                  Connect, speak the prompt, then end call to lock the trace.
-                </p>
-                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
-                  <StartAudioButton label="Enable microphone" room={sessionHook.room} />
-                </div>
+            <div className="mem-live-stack">
+              <p className="mem-live-label">Live voice scenario</p>
+              <p className="mem-live-prompt">“{SCENARIOS[scenario].prompt}”</p>
+              <AgentAudioVisualizerBar />
+              <AgentChatTranscript className="mem-live-transcript" />
+              <AgentControlBar />
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <StartAudioButton label="Enable microphone" room={sessionHook.room} />
               </div>
+              <RoomAudioRenderer />
             </div>
           ) : runId && replayOnly ? (
             <div
@@ -326,6 +312,9 @@ function SessionPanel({
 
         <div className="mem-panel-muted mem-tools">
           <p className="mem-section-label">Tool Path</p>
+          <p className="mem-tool-current">
+            Current action: {currentTool ? humanizeToolName(currentTool) : 'waiting...'}
+          </p>
           {tools.length === 0 ? (
             <p className="mem-tools-empty">No tools executed yet.</p>
           ) : (
@@ -358,7 +347,7 @@ function SessionPanel({
               }}
               className="mem-btn-outline"
             >
-              End call
+              {mode === 'cold' ? 'End cold run' : 'End memory run'}
             </button>
           </div>
         )}
@@ -561,13 +550,21 @@ export function DemoLayout() {
     isBackupReplay && timelineEvents.length > 0
       ? Math.min(100, Math.round((replayIndex / timelineEvents.length) * 100))
       : 0;
-  const coldSteps = displayedRun?.cold?.steps ?? [];
-  const memorySteps = displayedRun?.memory?.steps ?? [];
+  const coldCurrentTool =
+    [...(displayedRun?.cold?.events ?? [])].reverse().find((event) => event.type === 'tool_call')
+      ?.data.tool ?? null;
+  const memoryCurrentTool =
+    [...(displayedRun?.memory?.events ?? [])].reverse().find((event) => event.type === 'tool_call')
+      ?.data.tool ?? null;
+  const coldSteps = useMemo(() => displayedRun?.cold?.steps ?? [], [displayedRun?.cold?.steps]);
+  const memorySteps = useMemo(
+    () => displayedRun?.memory?.steps ?? [],
+    [displayedRun?.memory?.steps]
+  );
   const divergence = useMemo(
     () => firstDivergence(coldSteps, memorySteps),
     [coldSteps, memorySteps]
   );
-  const comparedRows = Math.max(coldSteps.length, memorySteps.length, 3);
 
   return (
     <div className="memorable-page">
@@ -577,19 +574,19 @@ export function DemoLayout() {
           <p className="mem-section-label">LIVE BENCHMARK</p>
           <h1 className="mem-demo-title">Cold vs Memorable</h1>
           <p className="mem-demo-sub">
-            Same scenario, different behavior. Compare cold vs memory mode runs and inspect emitted
-            trace events.
+            Run cold first, then memory mode on the same scenario. Watch steps, tokens, and time
+            update live.
           </p>
 
           <div className="mem-toolbar">
             <button type="button" onClick={startDemo} className="mem-btn">
-              Start demo
+              Run live: cold → memorable
             </button>
             <button type="button" onClick={reset} className="mem-btn-outline">
               Reset
             </button>
             <button type="button" onClick={loadBackup} className="mem-btn-outline">
-              Backup run
+              Replay scripted run
             </button>
             {isBackupReplay && (
               <button
@@ -692,6 +689,7 @@ export function DemoLayout() {
             session={displayedRun?.cold}
             enabled={!isBackupReplay && phase === 'cold'}
             replayOnly={isBackupReplay}
+            currentTool={typeof coldCurrentTool === 'string' ? coldCurrentTool : null}
             onFinish={() => setPhase('memory')}
           />
           <SessionPanel
@@ -706,49 +704,46 @@ export function DemoLayout() {
               displayedRun?.cold?.status === 'complete'
             }
             replayOnly={isBackupReplay}
+            currentTool={typeof memoryCurrentTool === 'string' ? memoryCurrentTool : null}
             onFinish={() => setPhase('done')}
           />
         </section>
 
         <section className="mem-panel mem-diff">
           <div className="mem-diff-head">
-            <p className="mem-section-label">WHY MEMORY WON</p>
-            {divergence ? (
+            <p className="mem-section-label">WHY MEMORABLE IS BETTER</p>
+            <p className="mem-diff-summary">
+              {displayedRun?.cold?.status === 'complete' &&
+              displayedRun?.memory?.status === 'complete'
+                ? `Cold used ${coldSteps.length} steps, ${coldTokens.toLocaleString()} tokens, ${fmtMs(
+                    displayedRun.cold.stats.duration_ms
+                  )}. Memorable used ${memorySteps.length} steps, ${memTokens.toLocaleString()} tokens, ${fmtMs(
+                    displayedRun.memory.stats.duration_ms
+                  )}.`
+                : 'Run cold and then memory to see direct speed and token gains.'}
+            </p>
+            {divergence && (
               <p className="mem-diff-summary">
-                Divergence at step {divergence.index + 1}: cold picked{' '}
-                <strong>{humanizeToolName(divergence.cold ?? 'none')}</strong>, memory picked{' '}
+                First behavior split happened at step {divergence.index + 1}:{' '}
+                <strong>{humanizeToolName(divergence.cold ?? 'none')}</strong> vs{' '}
                 <strong>{humanizeToolName(divergence.memory ?? 'none')}</strong>.
               </p>
-            ) : (
-              <p className="mem-diff-summary">
-                Waiting for first divergence in tool paths as replay advances.
-              </p>
             )}
-          </div>
-          <div className="mem-diff-grid">
-            <div className="mem-diff-col">
-              <p className="mem-section-label">Cold path</p>
-              {Array.from({ length: comparedRows }).map((_, idx) => (
-                <div
-                  key={`cold-${idx}`}
-                  className={`mem-diff-row ${divergence?.index === idx ? 'is-divergence' : ''}`}
-                >
-                  <span className="mem-diff-step">#{idx + 1}</span>
-                  <span>{humanizeToolName(coldSteps[idx] ?? '—')}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mem-diff-col">
-              <p className="mem-section-label">Memory path</p>
-              {Array.from({ length: comparedRows }).map((_, idx) => (
-                <div
-                  key={`memory-${idx}`}
-                  className={`mem-diff-row ${divergence?.index === idx ? 'is-divergence' : ''}`}
-                >
-                  <span className="mem-diff-step">#{idx + 1}</span>
-                  <span>{humanizeToolName(memorySteps[idx] ?? '—')}</span>
-                </div>
-              ))}
+            <div className="mem-diff-pills">
+              <span className="mem-pill active">-{Math.max(0, tokenDelta)} tokens</span>
+              <span className="mem-pill active">
+                -{Math.max(0, coldSteps.length - memorySteps.length)} steps
+              </span>
+              <span className="mem-pill active">
+                -
+                {fmtMs(
+                  Math.max(
+                    0,
+                    (displayedRun?.cold?.stats.duration_ms ?? 0) -
+                      (displayedRun?.memory?.stats.duration_ms ?? 0)
+                  )
+                )}
+              </span>
             </div>
           </div>
         </section>

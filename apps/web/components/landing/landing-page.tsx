@@ -10,7 +10,7 @@ const STEP_CARDS = [
   {
     id: 'ingest',
     title: 'INGEST',
-    desc: 'LiveKit sessions and traces enter the memory pipeline.',
+    desc: 'Embed the incoming task from LiveKit session context.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <rect x="4" y="8" width="16" height="12" className="scene-line" />
@@ -22,7 +22,7 @@ const STEP_CARDS = [
   {
     id: 'signal',
     title: 'SIGNAL',
-    desc: 'Moss retrieval runs across three memory layers.',
+    desc: 'K-means finds nearest workflow bucket + retrieval layers.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <path
@@ -35,7 +35,7 @@ const STEP_CARDS = [
   {
     id: 'relate',
     title: 'RELATE',
-    desc: 'GNN compiles traces into reusable workflow structure.',
+    desc: 'Concat bucket embedding with graph features into shared GNN.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <rect x="3" y="6" width="8" height="8" className="scene-line" />
@@ -47,7 +47,7 @@ const STEP_CARDS = [
   {
     id: 'replay',
     title: 'REPLAY',
-    desc: 'Runtime reuses best path and avoids dead-end tools.',
+    desc: 'Score paths and replay safest workflow at runtime.',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden>
         <path d="M8 6L18 12L8 18Z" className="scene-line" />
@@ -58,35 +58,36 @@ const STEP_CARDS = [
 
 const STEP_EXPLAIN: Record<string, { title: string; copy: string; points: string[] }> = {
   ingest: {
-    title: 'Ingest: LiveKit + Route Metadata',
-    copy: 'Voice sessions and event traces are stamped with mode, scenario, run, and model route.',
+    title: 'Ingest: Task Embedding',
+    copy: 'The current task/prompt is embedded from the live session before any routing decision.',
     points: [
-      'LiveKit provides room transport + streaming session context.',
-      'TrueFoundry route metadata is carried through token and worker dispatch.',
-      'Events are emitted to benchmark storage and replay logs.',
+      'LiveKit provides live session input + metadata.',
+      'TrueFoundry carries model route metadata for inference.',
+      'A dense task vector is produced for bucket routing.',
     ],
   },
   signal: {
-    title: 'Signal: 3-Layer Memory Retrieval',
-    copy: 'Moss serves retrieval across episodic, semantic, and workflow memory layers.',
+    title: 'Signal: K-Means + 3-Layer Retrieval',
+    copy: 'K-means maps the task embedding to the nearest workflow bucket, then Moss retrieves layered memory.',
     points: [
+      'Nearest centroid -> bucket_id for similar prior workflows.',
       'L1 Episodic: raw traces from prior sessions.',
       'L2 Semantic: recurring tool-use patterns and outcomes.',
       'L3 Workflow: distilled playbooks exported from GNN.',
     ],
   },
   relate: {
-    title: 'Relate: GNN Workflow Builder',
-    copy: 'Trace edges are compiled into workflow graphs and exported back into memory.',
+    title: 'Relate: Bucket Embedding + Shared GNN',
+    copy: 'The selected bucket embedding is concatenated with graph/tool features and passed through one shared GNN backbone.',
     points: [
-      'Tool transitions become graph edges by scenario.',
-      'GNN training updates ranking for reliable next actions.',
-      'Updated workflows are published to Moss workflows index.',
+      'Bucket embedding injects bucket-specific priors.',
+      'Concat: [tool_graph_features | bucket_embedding].',
+      'Single shared GNN scores candidate workflow paths.',
     ],
   },
   replay: {
-    title: 'Replay: Runtime Decision Layer',
-    copy: 'The live agent pulls memory context before speaking and selects safer, shorter paths.',
+    title: 'Replay: Path Selection Runtime',
+    copy: 'The agent receives ranked path scores and replays the best route while suppressing known dead ends.',
     points: [
       'Cold and memory runs stay comparable in the same scenario.',
       'Avoid-list blocks known dead-end tools during memory mode.',
@@ -220,46 +221,70 @@ function FlowchartScenes({ active }: { active: string }) {
 
             <rect
               x="274"
-              y="126"
+              y="104"
+              width="148"
+              height="44"
+              rx="8"
+              className={`arch-box ${ingestFocus}`}
+            />
+            <text x="289" y="130" className="arch-copy">
+              Task Embedding
+            </text>
+
+            <rect
+              x="438"
+              y="104"
+              width="170"
+              height="44"
+              rx="8"
+              className={`arch-box ${signalFocus}`}
+            />
+            <text x="453" y="130" className="arch-copy">
+              K-Means Bucket Router
+            </text>
+
+            <rect
+              x="274"
+              y="162"
               width="334"
-              height="220"
+              height="184"
               rx="14"
               className={`arch-box ${signalFocus}`}
             />
-            <text x="294" y="152" className="arch-title">
+            <text x="294" y="186" className="arch-title">
               Moss Memory Retrieval
             </text>
             <rect
               x="296"
-              y="172"
+              y="198"
               width="290"
               height="44"
               rx="8"
               className={`arch-subbox ${signalFocus}`}
             />
-            <text x="314" y="199" className="arch-copy">
+            <text x="314" y="225" className="arch-copy">
               L1 Episodic: prior session traces
             </text>
             <rect
               x="296"
-              y="226"
+              y="242"
               width="290"
               height="44"
               rx="8"
               className={`arch-subbox ${signalFocus}`}
             />
-            <text x="314" y="253" className="arch-copy">
+            <text x="314" y="269" className="arch-copy">
               L2 Semantic: repeated patterns
             </text>
             <rect
               x="296"
-              y="280"
+              y="286"
               width="290"
-              height="44"
+              height="34"
               rx="8"
               className={`arch-subbox ${signalFocus}`}
             />
-            <text x="314" y="307" className="arch-copy">
+            <text x="314" y="308" className="arch-copy">
               L3 Workflow: graph playbooks
             </text>
 
@@ -281,7 +306,7 @@ function FlowchartScenes({ active }: { active: string }) {
               exports workflow index
             </text>
             <text x="678" y="242" className="arch-copy">
-              dead-end suppression
+              concat [graph | bucket_emb]
             </text>
 
             <rect
@@ -304,8 +329,11 @@ function FlowchartScenes({ active }: { active: string }) {
 
             <path d="M208 106L326 68" className={`arch-link ${ingestFocus}`} />
             <path d="M208 218L274 236" className={`arch-link ${ingestFocus}`} />
-            <path d="M556 68L556 126" className={`arch-link ${ingestFocus}`} />
+            <path d="M556 68L348 104" className={`arch-link ${ingestFocus}`} />
+            <path d="M422 126L438 126" className={`arch-link ${signalFocus}`} />
+            <path d="M523 148L523 162" className={`arch-link ${signalFocus}`} />
             <path d="M608 236L660 212" className={`arch-link ${signalFocus}`} />
+            <path d="M608 126L660 198" className={`arch-link ${signalFocus}`} />
             <path d="M930 212L930 330H930" className={`arch-link ${relateFocus}`} />
             <path d="M608 304L650 328" className={`arch-link ${replayFocus}`} />
             <path

@@ -353,48 +353,23 @@
 
 .problem-line {
   display: inline-block;
-  width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  opacity: 1;
-  border-right: 2px solid rgba(13, 21, 36, 0.75);
+  opacity: 0;
+  transform: translateY(12px);
+  will-change: opacity, transform;
 }
 
 .mem-reveal.is-visible .problem-line-1 {
-  animation:
-    typewriter-line-1 2.5s steps(52, end) forwards,
-    caret-blink 0.85s steps(1) 3;
+  animation: section-line-in 0.7s ease forwards 0.08s;
 }
 
 .mem-reveal.is-visible .problem-line-2 {
-  animation:
-    typewriter-line-2 2.9s steps(44, end) forwards 2.55s,
-    caret-blink 0.85s steps(1) 3 2.55s,
-    caret-hide 0.01s linear forwards 5.45s;
+  animation: section-line-in 0.7s ease forwards 0.32s;
 }
 
-@keyframes typewriter-line-1 {
+@keyframes section-line-in {
   to {
-    width: 100%;
-  }
-}
-
-@keyframes typewriter-line-2 {
-  to {
-    width: 100%;
-  }
-}
-
-@keyframes caret-blink {
-  50% {
-    border-right-color: transparent;
-  }
-}
-
-@keyframes caret-hide {
-  to {
-    border-right-color: transparent;
+    opacity: 1;
+    transform: none;
   }
 }
 
